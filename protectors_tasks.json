@@ -1,0 +1,159 @@
+{
+  "name": "protectors",
+  "created_at": "2024-04-01T00:00:00Z",
+  "updated_at": "2024-04-01T00:00:00Z",
+  "tasks": [
+    {
+      "title": "Add New Relic to tappy api",
+      "description": "Implement New Relic monitoring for tappy api",
+      "status": "todo",
+      "priority": "high",
+      "tags": "newrelic,monitoring,tappy",
+      "due_date": null
+    },
+    {
+      "title": "Add New Relic alerts and Pager Duty to Mission Control",
+      "description": "Implement New Relic alerts with low urgency Pager Duty integration for Mission Control",
+      "status": "todo",
+      "priority": "medium",
+      "tags": "newrelic,alerts,pagerduty,mission-control",
+      "due_date": null
+    },
+    {
+      "title": "Update assurance-postsale infrastructure",
+      "description": "Migrate to application load balancer, add New Relic infrastructure and alerts, update to Amazon Linux 2023, and update from OpenJDK8 to OpenJDK21 (EOL). Lock Docker image version instead of using latest.",
+      "status": "todo",
+      "priority": "high",
+      "tags": "migration,newrelic,infra,amazon-linux,openjdk,docker",
+      "due_date": null
+    },
+    {
+      "title": "Update apms-db-converter infrastructure",
+      "description": "Migrate to application load balancer, add New Relic infrastructure and alerts, update to Amazon Linux 2023, and update from OpenJDK8 to OpenJDK21 (EOL). Lock Docker image version instead of using latest.",
+      "status": "todo",
+      "priority": "high",
+      "tags": "migration,newrelic,infra,amazon-linux,openjdk,docker",
+      "due_date": null
+    },
+    {
+      "title": "Migrate MAN-Vintage/questions-engine-frontend to barracua org",
+      "description": "Repository migration from MAN-Vintage to barracua organization",
+      "status": "todo",
+      "priority": "medium",
+      "tags": "migration,repository,barracua,vintage",
+      "due_date": null
+    },
+    {
+      "title": "Migrate MAN-Vintage/question-engine-api to barracua org",
+      "description": "Repository migration from MAN-Vintage to barracua organization",
+      "status": "todo",
+      "priority": "medium",
+      "tags": "migration,repository,barracua,vintage",
+      "due_date": null
+    },
+    {
+      "title": "Migrate MAN-Fireflies/cr-popout-ui to barracua org",
+      "description": "Repository migration from MAN-Fireflies to barracua organization",
+      "status": "todo",
+      "priority": "medium",
+      "tags": "migration,repository,barracua,fireflies",
+      "due_date": null
+    },
+    {
+      "title": "Migrate MAN-Fireflies/cr-popout-api to barracua org",
+      "description": "Repository migration from MAN-Fireflies to barracua organization",
+      "status": "todo",
+      "priority": "medium",
+      "tags": "migration,repository,barracua,fireflies",
+      "due_date": null
+    },
+    {
+      "title": "Migrate arbitration-tf-shared to GitHub Actions",
+      "description": "Migrate terraform repository from current CI/CD to GitHub Actions",
+      "status": "todo",
+      "priority": "medium",
+      "tags": "migration,terraform,github-actions",
+      "due_date": null
+    },
+    {
+      "title": "Migrate awsappman-tf-accounts-management to GitHub Actions",
+      "description": "Migrate terraform repository from current CI/CD to GitHub Actions",
+      "status": "todo",
+      "priority": "medium",
+      "tags": "migration,terraform,github-actions",
+      "due_date": null
+    },
+    {
+      "title": "Migrate surcharge-tf-environment to GitHub Actions",
+      "description": "Migrate terraform repository from current CI/CD to GitHub Actions",
+      "status": "todo",
+      "priority": "medium",
+      "tags": "migration,terraform,github-actions",
+      "due_date": null
+    },
+    {
+      "title": "Migrate tapp-aurora-mysql to GitHub Actions",
+      "description": "Migrate terraform repository from current CI/CD to GitHub Actions",
+      "status": "todo",
+      "priority": "medium",
+      "tags": "migration,terraform,github-actions,aurora-mysql",
+      "due_date": null
+    },
+    {
+      "title": "Migrate tapp-aurora-postgresql to GitHub Actions",
+      "description": "Migrate terraform repository from current CI/CD to GitHub Actions",
+      "status": "todo",
+      "priority": "medium",
+      "tags": "migration,terraform,github-actions,aurora-postgresql",
+      "due_date": null
+    },
+    {
+      "title": "Migrate tappy-aws-infrastructure to GitHub Actions",
+      "description": "Migrate terraform repository from current CI/CD to GitHub Actions",
+      "status": "todo",
+      "priority": "medium",
+      "tags": "migration,terraform,github-actions,tappy-aws",
+      "due_date": null
+    },
+    {
+      "title": "Migrate tappy-mission-control-tf-environment to GitHub Actions",
+      "description": "Migrate terraform repository from current CI/CD to GitHub Actions",
+      "status": "todo",
+      "priority": "medium",
+      "tags": "migration,terraform,github-actions,mission-control",
+      "due_date": null
+    },
+    {
+      "title": "Migrate tappy-tf-shared to GitHub Actions",
+      "description": "Migrate terraform repository from current CI/CD to GitHub Actions",
+      "status": "todo",
+      "priority": "medium",
+      "tags": "migration,terraform,github-actions,tappy-shared",
+      "due_date": null
+    },
+    {
+      "title": "Migrate tappy-wordpress-tf-environment to GitHub Actions",
+      "description": "Migrate terraform repository from current CI/CD to GitHub Actions",
+      "status": "todo",
+      "priority": "medium",
+      "tags": "migration,terraform,github-actions,wordpress",
+      "due_date": null
+    },
+    {
+      "title": "Migrate tappy2-client-tf-environment to GitHub Actions",
+      "description": "Migrate terraform repository from current CI/CD to GitHub Actions",
+      "status": "todo",
+      "priority": "medium",
+      "tags": "migration,terraform,github-actions,tappy2-client",
+      "due_date": null
+    },
+    {
+      "title": "Migrate tappy_mysql to GitHub Actions",
+      "description": "Migrate terraform repository from current CI/CD to GitHub Actions",
+      "status": "todo",
+      "priority": "medium",
+      "tags": "migration,terraform,github-actions,tappy-mysql",
+      "due_date": null
+    }
+  ]
+} 

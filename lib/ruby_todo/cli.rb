@@ -353,16 +353,32 @@ module RubyTodo
     desc "notebook:list", "List all notebooks"
     def notebook_list
       notebooks = Notebook.all
-      if notebooks.empty?
-        puts "No notebooks found. Create one with 'ruby_todo notebook:create NAME'".yellow
-        return
-      end
+      return say "No notebooks found".yellow if notebooks.empty?
 
       table = TTY::Table.new(
-        header: ["ID", "Name", "Tasks", "Created At"],
-        rows: notebooks.map { |n| [n.id, n.name, n.tasks.count, n.created_at] }
+        header: ["ID", "Name", "Tasks", "Created At", "Default"],
+        rows: notebooks.map do |notebook|
+          [
+            notebook.id,
+            notebook.name,
+            notebook.tasks.count,
+            notebook.created_at,
+            notebook.is_default? ? "✓" : ""
+          ]
+        end
       )
       puts table.render(:ascii)
+    end
+
+    desc "notebook:set_default NOTEBOOK", "Set a notebook as the default"
+    def notebook_set_default(name)
+      notebook = Notebook.find_by(name: name)
+      if notebook
+        notebook.make_default!
+        say "Successfully set '#{name}' as the default notebook".green
+      else
+        say "Notebook '#{name}' not found".red
+      end
     end
 
     desc "template:create NAME", "Create a new task template"
@@ -792,6 +808,7 @@ module RubyTodo
     map "task:search" => :task_search
     map "notebook:create" => :notebook_create
     map "notebook:list" => :notebook_list
+    map "notebook:set_default" => :notebook_set_default
     map "template:create" => :template_create
     map "template:list" => :template_list
     map "template:show" => :template_show
@@ -822,6 +839,7 @@ module RubyTodo
         puts "  ruby_todo ai:configure                           # Configure the AI assistant settings"
         puts "  ruby_todo notebook:create NAME                   # Create a new notebook"
         puts "  ruby_todo notebook:list                         # List all notebooks"
+        puts "  ruby_todo notebook:set_default NAME             # Set a notebook as the default"
         puts "  ruby_todo task:add [NOTEBOOK] [TITLE]           # Add a new task to a notebook"
         puts "  ruby_todo task:list [NOTEBOOK]                  # List all tasks in a notebook"
         puts "  ruby_todo task:show [NOTEBOOK] [TASK_ID]        # Show task details"

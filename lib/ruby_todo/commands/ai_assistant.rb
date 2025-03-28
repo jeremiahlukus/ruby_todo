@@ -11,7 +11,12 @@ module RubyTodo
       matching_tasks = []
       search_terms = search_term.split(/\s+(?:and|&)\s+/).map(&:strip)
 
-      Notebook.all.each do |notebook|
+      notebooks = Notebook.all
+      notebooks = [Notebook.default_notebook] if notebooks.size > 1
+
+      notebooks.each do |notebook|
+        next unless notebook
+
         notebook.tasks.each do |task|
           next unless search_terms.any? do |term|
             matches_task?(task, term)
@@ -90,7 +95,24 @@ module RubyTodo
 
     def handle_task_request(prompt, context)
       if should_handle_task_movement?(prompt)
-        handle_task_movement(prompt, context)
+        search_term = extract_search_term(prompt)
+        return unless search_term
+
+        say "Searching for tasks matching: '#{search_term}'" if options[:verbose]
+        matching_tasks = pre_search_tasks(search_term)
+
+        if matching_tasks.any?
+          target_status = extract_target_status(prompt)
+          if target_status
+            handle_matching_tasks(matching_tasks, context)
+            context[:target_status] = target_status
+            context[:search_term] = search_term
+          else
+            say "Could not determine target status from prompt".yellow
+          end
+        else
+          say "No tasks found matching: '#{search_term}'".yellow
+        end
       end
     end
 
@@ -114,26 +136,6 @@ module RubyTodo
       end
     end
 
-    def handle_task_movement(prompt, context)
-      search_term = extract_search_term(prompt)
-      return unless search_term
-
-      say "Searching for tasks matching: '#{search_term}'" if options[:verbose]
-      matching_tasks = pre_search_tasks(search_term)
-
-      if matching_tasks.any?
-        target_status = extract_target_status(prompt)
-        if target_status
-          handle_matching_tasks(matching_tasks, context)
-          move_tasks_to_status(matching_tasks, target_status)
-        else
-          say "Could not determine target status from prompt".yellow
-        end
-      else
-        say "No tasks found matching: '#{search_term}'".yellow
-      end
-    end
-
     def extract_target_status(prompt)
       prompt = prompt.downcase
       status_map = {
@@ -141,7 +143,8 @@ module RubyTodo
         "in progress" => "in_progress",
         "todo" => "todo",
         "done" => "done",
-        "archived" => "archived"
+        "archived" => "archived",
+        "pending" => "todo"
       }
 
       status_map.each do |key, value|
@@ -236,41 +239,45 @@ module RubyTodo
          ruby_todo notebook:create NAME
          - Create a new notebook
 
+      10. Set default notebook:
+          ruby_todo notebook:set_default NAME
+          - Set a notebook as the default
+
       Template Management:
-      10. List templates:
+      11. List templates:
           ruby_todo template:list
           - List all templates
 
-      11. Show template:
+      12. Show template:
           ruby_todo template:show NAME
           - Show details of a specific template
 
-      12. Create template:
+      13. Create template:
           ruby_todo template:create NAME --title TITLE
           - Create a new task template
 
-      13. Delete template:
+      14. Delete template:
           ruby_todo template:delete NAME
           - Delete a template
 
-      14. Use template:
+      15. Use template:
           ruby_todo template:use NAME NOTEBOOK
           - Create a task from a template in the specified notebook
 
       Other Commands:
-      15. Export tasks:
+      16. Export tasks:
           ruby_todo export [NOTEBOOK] [FILENAME]
           - Export tasks from a notebook to a JSON file
 
-      16. Import tasks:
+      17. Import tasks:
           ruby_todo import [FILENAME]
           - Import tasks from a JSON or CSV file
 
-      17. Show statistics:
+      18. Show statistics:
           ruby_todo stats [NOTEBOOK]
           - Show statistics for a notebook or all notebooks
 
-      18. Initialize:
+      19. Initialize:
           ruby_todo init
           - Initialize a new todo list
 
@@ -280,6 +287,8 @@ module RubyTodo
   end
 
   module OpenAIPromptBuilder
+    include OpenAIDocumentation
+
     private
 
     def build_messages(prompt, context)
@@ -296,10 +305,14 @@ module RubyTodo
 
     def build_system_prompt(context)
       prompt = "You are a task management assistant that generates ruby_todo CLI commands. "
-      prompt += "Your role is to analyze user requests and generate the appropriate ruby_todo command. "
+      prompt += "Your role is to analyze user requests and generate the appropriate ruby_todo command(s). "
       prompt += "\n\nHere are the available commands and their usage:\n"
       prompt += CLI_DOCUMENTATION
-      prompt += "\nBased on the user's request, generate a command that follows these formats exactly."
+      prompt += "\nBased on the user's request, generate command(s) that follow these formats exactly."
+      prompt += "\n\nStatus Mapping:"
+      prompt += "\n- 'pending' maps to 'todo'"
+      prompt += "\n- 'in progress' maps to 'in_progress'"
+      prompt += "\nPlease use the mapped status values in your commands."
 
       if context[:matching_tasks]&.any?
         prompt += "\n\nRelevant tasks found in the system:\n"
@@ -307,11 +320,25 @@ module RubyTodo
           task_info = format_task_info(task)
           prompt += "- #{task_info}\n"
         end
+
+        if context[:target_status] && context[:search_term]
+          prompt += "\n\nI will move these tasks matching '#{context[:search_term]}' to '#{context[:target_status]}' status."
+          prompt += "\nPlease provide a JSON response with:"
+          prompt += "\n- 'commands': an array of commands to execute in sequence"
+          prompt += "\n- 'explanation': a brief explanation of what tasks will be moved and why"
+          prompt += "\n\nFor example:"
+          prompt += "\n```json"
+          prompt += "\n{"
+          prompt += "\n  \"commands\": ["
+          prompt += "\n    \"ruby_todo task:move notebook1 1 todo\","
+          prompt += "\n    \"ruby_todo task:move notebook1 2 todo\""
+          prompt += "\n  ],"
+          prompt += "\n  \"explanation\": \"Moving tasks 1 and 2 to todo status\""
+          prompt += "\n}"
+          prompt += "\n```"
+        end
       end
 
-      prompt += "\nPlease analyze the user's request and respond with a JSON object containing:"
-      prompt += "\n- 'command': the ruby_todo command to execute"
-      prompt += "\n- 'explanation': a brief explanation of what the command will do"
       prompt
     end
 
@@ -326,6 +353,7 @@ module RubyTodo
     include OpenAIPromptBuilder
 
     def query_openai(prompt, context, api_key)
+      say "\nMaking OpenAI API call...".blue if options[:verbose]
       client = OpenAI::Client.new(access_token: api_key)
       messages = build_messages(prompt, context)
       say "Sending request to OpenAI..." if options[:verbose]
@@ -339,6 +367,7 @@ module RubyTodo
         }
       )
 
+      say "\nOpenAI API call completed".green if options[:verbose]
       handle_openai_response(response)
     end
 
@@ -398,9 +427,23 @@ module RubyTodo
       validate_prompt(prompt)
       api_key = fetch_api_key
       context = build_context
+
+      # Handle task movement and build context
       handle_task_request(prompt, context)
+
+      # Get AI response for commands and explanation
       response = query_openai(prompt, context, api_key)
-      handle_response(response)
+
+      # If we have tasks to move, do it now
+      if context[:matching_tasks]&.any? && context[:target_status]
+        move_tasks_to_status(context[:matching_tasks], context[:target_status])
+      end
+
+      # Execute any additional commands from the AI
+      execute_commands(response) if response && response["commands"]
+
+      # Display the explanation from the AI
+      say "\n#{response["explanation"]}" if response && response["explanation"]
     end
 
     desc "ai:configure", "Configure the AI assistant settings"
@@ -440,40 +483,31 @@ module RubyTodo
       { matching_tasks: [] }
     end
 
-    def handle_response(response)
-      return unless response
+    def execute_commands(response)
+      return unless response["commands"].is_a?(Array)
 
-      if response["command"]
-        execute_command(response["command"])
-      end
+      response["commands"].each do |command|
+        say "\nExecuting command: #{command}".blue if options[:verbose]
+        begin
+          # Split the command into parts
+          parts = command.split(/\s+(?=(?:[^"]*"[^"]*")*[^"]*$)/)
 
-      say "\n#{response["explanation"]}" if response["explanation"]
-    end
+          # Get the base command and subcommand
+          base_cmd = parts[0]
+          subcmd = parts[1]&.tr(":", "_")
 
-    def execute_command(command)
-      say "\nExecuting command: #{command}".blue if options[:verbose]
-      begin
-        # Split the command into parts
-        parts = command.split(/\s+(?=(?:[^"]*"[^"]*")*[^"]*$)/)
+          # Reconstruct the command with the correct format
+          if subcmd && base_cmd == "ruby_todo"
+            parts[1] = subcmd
+            command = parts.join(" ")
+          end
 
-        # Get the base command and subcommand
-        base_cmd = parts[0]
-        subcmd = parts[1]&.tr(":", "_")
-
-        # Reconstruct the command with the correct format
-        if subcmd && base_cmd == "ruby_todo"
-          parts[1] = subcmd
-          command = parts.join(" ")
+          # Execute the command
+          success = system(command)
+          raise "Command failed: #{command}" unless success
+        rescue StandardError => e
+          say "Error executing command: #{e.message}".red
         end
-
-        # Execute the command
-        success = system(command)
-        raise "Command failed" unless success
-
-        true
-      rescue StandardError => e
-        say "Error executing command: #{e.message}".red
-        nil
       end
     end
   end
