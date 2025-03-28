@@ -1,0 +1,106 @@
+AllCops:
+  NewCops: enable
+  TargetRubyVersion: 3.0
+  SuggestExtensions: false
+  Exclude:
+    - 'vendor/**/*'
+    - 'bin/**/*'
+
+plugins:
+  - rubocop-minitest
+  - rubocop-rake
+
+# Increase line length limit
+Layout/LineLength:
+  Max: 120
+
+# Relaxed metrics for all files
+Metrics/AbcSize:
+  Max: 35
+  Exclude:
+    - 'test/**/*'
+    - 'lib/ruby_todo/cli.rb'
+    - 'lib/ruby_todo/database.rb'
+    - 'lib/ruby_todo/models/template.rb'
+
+Metrics/ClassLength:
+  Max: 600
+  Exclude:
+    - 'test/**/*'
+
+Metrics/MethodLength:
+  Max: 35
+  Exclude:
+    - 'test/**/*'
+    - 'lib/ruby_todo/cli.rb'
+    - 'lib/ruby_todo/database.rb'
+
+Metrics/CyclomaticComplexity:
+  Max: 15
+
+Metrics/PerceivedComplexity:
+  Max: 20
+
+# Allow longer blocks in test files and CLI
+Metrics/BlockLength:
+  Max: 50
+  Exclude:
+    - 'test/**/*'
+    - 'ruby_todo.gemspec'
+
+# Relaxed rules for test descriptions
+Naming/VariableNumber:
+  Exclude:
+    - 'test/**/*'
+    - 'lib/ruby_todo/database.rb'
+
+Naming/PredicateName:
+  Enabled: false
+
+# Disable documentation requirement for now
+Style/Documentation:
+  Enabled: false
+
+# Disabled Minitest-specific rules
+Minitest/MultipleAssertions:
+  Enabled: false
+  
+Minitest/EmptyLineBeforeAssertionMethods:
+  Enabled: false
+
+Minitest/UselessAssertion:
+  Enabled: false
+
+# String literals configuration
+Style/StringLiterals:
+  Enabled: true
+  EnforcedStyle: double_quotes
+
+Style/StringLiteralsInInterpolation:
+  EnforcedStyle: double_quotes
+
+# Gemspec configurations
+Gemspec/DevelopmentDependencies:
+  Enabled: false
+
+Gemspec/RequireMFA:
+  Enabled: false
+
+# Allow some flexibility in style
+Style/GuardClause:
+  Enabled: false
+
+Style/IfUnlessModifier:
+  Enabled: false
+
+Style/NumericPredicate:
+  Enabled: false
+
+Style/SafeNavigation:
+  Enabled: false
+
+Style/SafeNavigationChainLength:
+  Enabled: false
+
+Lint/AmbiguousOperatorPrecedence:
+  Enabled: false
