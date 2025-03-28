@@ -28,3 +28,18 @@ end
 
 # Configure ActiveRecord for testing
 ActiveRecord::Base.logger = nil
+
+# Base test class with database setup
+module Minitest
+  class Test
+    def setup
+      RubyTodo::Database.setup
+    end
+
+    def teardown
+      RubyTodo::Task.delete_all
+      RubyTodo::Notebook.delete_all
+      RubyTodo::Template.delete_all
+    end
+  end
+end

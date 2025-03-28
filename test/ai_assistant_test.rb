@@ -4,33 +4,10 @@ require "test_helper"
 
 class AIAssistantTest < Minitest::Test
   def setup
-    # Setup test database
-    RubyTodo::Database.setup
-
-    # Create a test notebook
+    super
     @notebook = RubyTodo::Notebook.create(name: "Test Notebook")
-
-    # Create some test tasks
-    @task1 = RubyTodo::Task.create(
-      notebook: @notebook,
-      title: "Test Task 1",
-      description: "Task description",
-      status: "todo",
-      priority: "high",
-      tags: "test,important"
-    )
-
-    @task2 = RubyTodo::Task.create(
-      notebook: @notebook,
-      title: "Test Task 2",
-      description: "Another task description",
-      status: "in_progress",
-      priority: "medium",
-      tags: "test,documentation"
-    )
-
-    # Initialize AI command
-    @ai_command = RubyTodo::AIAssistantCommand.new
+    @task1 = @notebook.tasks.create(title: "Test Task 1", status: "todo")
+    @ai_command = RubyTodo::AIAssistantCommand.new([], { verbose: true })
   end
 
   def teardown
@@ -44,92 +21,62 @@ class AIAssistantTest < Minitest::Test
     context = @ai_command.send(:build_context)
 
     assert_kind_of Hash, context
-    assert_includes context.keys, :notebooks
-    assert_includes context.keys, :commands
-    assert_includes context.keys, :app_version
-
-    # Check notebooks data
-    notebooks = context[:notebooks]
-    assert_kind_of Array, notebooks
-    assert_equal 1, notebooks.length
-
-    notebook_data = notebooks.first
-    assert_equal @notebook.id, notebook_data[:id]
-    assert_equal "Test Notebook", notebook_data[:name]
-    assert_equal 2, notebook_data[:task_count]
-    assert_equal 1, notebook_data[:todo_count]
-    assert_equal 1, notebook_data[:in_progress_count]
+    assert_includes context.keys, :matching_tasks
+    assert_kind_of Array, context[:matching_tasks]
   end
 
-  def test_parse_and_execute_actions
-    # Mock JSON response
+  def test_handle_response
+    # Mock JSON response with a simpler command
     json_response = {
-      explanation: "Creating a new task",
-      actions: [
-        {
-          type: "create_task",
-          notebook: "Test Notebook",
-          title: "New test task",
-          description: "Task created from test",
-          priority: "medium",
-          tags: "test,mock"
-        }
-      ]
-    }.to_json
+      "command" => "ruby_todo notebook:list",
+      "explanation" => "Listing all notebooks"
+    }
 
     # Capture stdout to verify output
     out, _err = capture_io do
-      @ai_command.send(:parse_and_execute_actions, json_response)
+      @ai_command.send(:handle_response, json_response)
     end
 
     # Verify output
-    assert_match(/Creating a new task/, out)
-    assert_match(/Added task: New test task/, out)
-
-    # Verify task was created
-    task = RubyTodo::Task.find_by(title: "New test task")
-    assert_equal "Task created from test", task.description
-    assert_equal "medium", task.priority
-    assert_equal "test,mock", task.tags
+    assert_match(/Listing all notebooks/, out)
+    assert_match(/Executing command:/, out)
   end
 
-  def test_parsing_invalid_json
-    # Test with invalid JSON
-    invalid_json = "This is not valid JSON"
+  def test_handle_invalid_response
+    # Test with invalid response
+    invalid_response = nil
 
     out, _err = capture_io do
-      @ai_command.send(:parse_and_execute_actions, invalid_json)
+      @ai_command.send(:handle_response, invalid_response)
     end
 
-    # Verify error message
-    assert_match(/Couldn't parse AI response/, out)
+    # Verify no output for nil response
+    assert_empty out
   end
 
-  def test_move_task_action
-    # Mock move task action
-    json_response = {
-      explanation: "Moving task to done",
-      actions: [
-        {
-          type: "move_task",
-          notebook: "Test Notebook",
-          task_id: @task1.id,
-          status: "done"
-        }
-      ]
-    }.to_json
+  def test_handle_task_movement
+    # Test task movement
+    prompt = "move task about Test Task 1 to done"
+    context = { matching_tasks: [
+      {
+        notebook: @notebook.name,
+        task_id: @task1.id,
+        title: @task1.title,
+        status: @task1.status
+      }
+    ] }
 
     # Capture stdout to verify output
     out, _err = capture_io do
-      @ai_command.send(:parse_and_execute_actions, json_response)
+      @ai_command.send(:handle_task_request, prompt, context)
     end
 
-    # Verify output
-    assert_match(/Moving task to done/, out)
-    assert_match(/Moved task #{@task1.id} to done/, out)
+    # Verify task was found and moved
+    assert_match(/Found 1 task/, out)
+    assert_match(/Successfully moved task/, out)
 
-    # Verify task was moved
+    # Verify task status was updated (tasks marked as done are automatically archived)
     @task1.reload
-    assert_equal "archived", @task1.status # It should be archived due to the auto-archiving behavior
+    assert_equal "archived", @task1.status
   end
 end
