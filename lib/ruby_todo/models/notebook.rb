@@ -79,7 +79,7 @@ module RubyTodo
     end
 
     def statistics
-      stats = {
+      {
         total: tasks.count,
         todo: tasks.where(status: "todo").count,
         in_progress: tasks.where(status: "in_progress").count,
@@ -91,8 +91,6 @@ module RubyTodo
         medium_priority: tasks.where(priority: "medium").count,
         low_priority: tasks.where(priority: "low").count
       }
-
-      stats
     end
 
     private

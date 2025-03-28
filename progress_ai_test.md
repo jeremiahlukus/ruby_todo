@@ -6,7 +6,7 @@ This document tracks the testing of the `ruby_todo ai:ask` command with various 
 
 For each test:
 1. Run `ruby delete_notebooks.rb` to reset the environment
-2. Run `ruby_todo import protectors_tasks.json` to restore test data
+2. Run `echo "y" | ruby_todo import protectors_tasks.json` to restore test data
 3. Run the test command
 4. Verify the expected behavior
 
@@ -17,6 +17,9 @@ For each test:
 | Move Task | "move migrate arbitration-tf-shared to github actions" | Move task with ID 85 to in_progress status | ✅ Success | Successfully moved task to in_progress and provided confirmation message |
 | Move Multiple Tasks | "move migrate arbitration-tf-shared and awsappman-tf-accounts-management to github actions" | Move tasks with IDs 104 and 105 to in_progress status | ✅ Success | Successfully moved both tasks to in_progress and provided confirmation message |
 | Special Pattern Search | "move all migrate to barracuda org tasks to done" | Move all barracuda-related tasks (IDs 119-122) to done status | ✅ Success | Successfully identified and moved 4 barracuda-related tasks to done status |
+| Generic Repository Pattern | "move acme tasks to done" | Move task with "acme org" in title to done status | ✅ Success | Successfully identified and moved task with generic repository pattern |
+| Generic Repository Pattern (Different Syntax) | "move tasks related to quantum org to in_progress" | Move task with "quantum org" in title to in_progress status | ✅ Success | Successfully identified and moved task with different repository pattern syntax |
+| Generic Repository Pattern (GitHub) | "move task with Move app-repo/frontend to GitHub to todo" | Move task with "GitHub" in title to todo status | ✅ Success | Successfully identified and moved task with GitHub migration pattern |
 | Move to Archived | "move tappy-tf-shared to archived" | Move task with ID 149 to archived status | ✅ Success | Successfully moved task to archived status |
 | Status Mapping | "move tappy-aws-infrastructure to pending" | Move task with ID 166 to todo status | ✅ Success | Successfully mapped "pending" to "todo" status |
 | Partial Title Search | "move Add New Relic to in progress" | Move tasks with "New Relic" in their titles to in_progress status | ✅ Success | Successfully found and moved 4 matching tasks |
@@ -48,6 +51,10 @@ After implementing all direct command handlers, a comprehensive smoke test was c
 | Status Filtering | "show me all in progress tasks" | ✅ Success | Correctly displayed all in-progress tasks including newly created ones |
 | Bulk Task Movement | "move all tasks to todo" | ✅ Success | Successfully moved all tasks in the default notebook to todo status |
 | Bulk Task Movement (Alt) | "move all tasks to in_progress" | ✅ Success | Successfully moved all tasks in the default notebook to in_progress status |
+| Repository Migration | "move migrate repositories to in progress" | ✅ Success | Successfully moved all repository migration tasks regardless of organization name |
+| Repository Migration (Other Org) | "move acme tasks to done" | ✅ Success | Successfully identified and moved repository migration tasks for non-barracuda organizations |
+| Repository Migration (Different Syntax) | "move tasks related to quantum org to in_progress" | ✅ Success | Successfully identified and moved task with "repo/name to org" pattern |
+| Repository Migration (GitHub) | "move task with Move app-repo/frontend to GitHub to todo" | ✅ Success | Successfully identified and moved task with GitHub migration pattern |
 
 The smoke test confirms that all implemented AI assistant functionality is working as expected. The direct command handlers successfully bypass the OpenAI API for common queries, making these operations faster and more reliable.
 
@@ -57,7 +64,9 @@ The AI assistant has been significantly improved and now works effectively for:
 1. Task movement operations (as before)
    - Single task movement
    - Multiple task movement with compound search terms
-   - Special pattern recognition (like "barracuda org" tasks)
+   - Special pattern recognition (repository migrations for any organization, not just "barracuda org")
+   - Support for different repository migration syntax patterns (both "to org" and "repo/name" formats)
+   - GitHub migration pattern recognition
    - Status mappings (e.g., "pending" → "todo", "github actions" → "in_progress")
    - Different statuses (todo, in_progress, done, archived)
    - Bulk operations on all tasks ("move all tasks to...")
@@ -98,6 +107,9 @@ The following approaches were used to improve the AI assistant:
 6. **Intelligent pattern extraction**: Added logic to extract task titles, priorities, and notebook names from natural language queries
 7. **Contextual defaults**: Used the default notebook when specific notebooks aren't mentioned in queries
 8. **Special case handling**: Added special token pattern recognition for bulk operations like "move all tasks"
+9. **Generic pattern matching**: Updated repository migration pattern to work with any organization name, not just "barracuda"
+10. **Flexible syntax support**: Enhanced pattern matching to recognize different formats of repository migration commands
+11. **GitHub integration**: Added support for GitHub migration patterns in task search and movement
 
 These changes have greatly improved the reliability and consistency of the AI assistant, particularly for common task and notebook operations. The AI-powered system now provides a robust natural language interface that makes task management more intuitive and efficient.
 

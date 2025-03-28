@@ -406,8 +406,19 @@ module RubyTodo
       TemplateCommand.new.use(name, notebook)
     end
 
-    # Register AI Assistant subcommand
-    register(AIAssistantCommand, "ai", "ai", "Use AI assistant")
+    # Register AI Assistant subcommand with colon format
+    desc "ai:ask PROMPT", "Ask the AI assistant to perform tasks using natural language"
+    method_option :api_key, type: :string, desc: "OpenAI API key"
+    method_option :verbose, type: :boolean, default: false, desc: "Show detailed response"
+    def ai_ask(*prompt_args)
+      prompt = prompt_args.join(" ")
+      ai_command.ask(prompt)
+    end
+
+    desc "ai:configure", "Configure the AI assistant settings"
+    def ai_configure
+      ai_command.configure
+    end
 
     # Map commands to use colon format
     map "notebook:list" => :notebook_list
@@ -784,20 +795,6 @@ module RubyTodo
       end
     end
 
-    # Register commands with colon format
-    desc "ai:ask PROMPT", "Ask the AI assistant to perform tasks using natural language"
-    method_option :api_key, type: :string, desc: "OpenAI API key"
-    method_option :verbose, type: :boolean, default: false, desc: "Show detailed response"
-    def ai_ask(*prompt_args)
-      prompt = prompt_args.join(" ")
-      ai_command.ask(prompt)
-    end
-
-    desc "ai:configure", "Configure the AI assistant settings"
-    def ai_configure
-      ai_command.configure
-    end
-
     # Map all commands to use colon format
     map "task:add" => :task_add
     map "task:list" => :task_list
@@ -814,8 +811,6 @@ module RubyTodo
     map "template:show" => :template_show
     map "template:delete" => :template_delete
     map "template:use" => :template_use
-    map "ai:ask" => :ai_ask
-    map "ai:configure" => :ai_configure
 
     # Remove old command mappings
     no_commands do

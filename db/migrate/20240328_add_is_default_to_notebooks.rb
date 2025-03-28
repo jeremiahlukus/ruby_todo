@@ -7,4 +7,4 @@ module RubyTodo
       add_index :notebooks, :is_default
     end
   end
-end 
+end

@@ -69,8 +69,8 @@ module RubyTodo
           end
 
           # Add indexes if they don't exist
-          unless connection.index_exists?(:tasks, [:notebook_id, :status])
-            add_index :tasks, [:notebook_id, :status]
+          unless connection.index_exists?(:tasks, %i[notebook_id status])
+            add_index :tasks, %i[notebook_id status]
           end
 
           unless connection.index_exists?(:tasks, :priority)
