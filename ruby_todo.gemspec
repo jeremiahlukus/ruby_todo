@@ -36,12 +36,12 @@ Gem::Specification.new do |spec|
   # Runtime dependencies
   spec.add_dependency "activerecord", "~> 7.1"
   spec.add_dependency "colorize", "~> 1.1"
+  spec.add_dependency "dotenv", "~> 2.8" # For API key management
+  spec.add_dependency "ruby-openai", "~> 6.3.0" # For OpenAI API
   spec.add_dependency "sqlite3", "~> 1.7"
   spec.add_dependency "thor", "~> 1.3"
   spec.add_dependency "tty-prompt", "~> 0.23"
   spec.add_dependency "tty-table", "~> 0.12"
-  spec.add_dependency "ruby-openai", "~> 6.3.0" # For OpenAI API 
-  spec.add_dependency "dotenv", "~> 2.8" # For API key management
 
   # Development dependencies
   spec.add_development_dependency "minitest", "~> 5.19"

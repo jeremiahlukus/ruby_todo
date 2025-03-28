@@ -18,4 +18,3 @@ puts "Successfully deleted #{task_count} tasks."
 # Then delete notebooks
 RubyTodo::Notebook.delete_all
 puts "Successfully deleted #{notebook_count} notebooks."
-
