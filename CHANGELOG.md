@@ -1,7 +1,13 @@
-## [0.3.5] - 2025-03-28
+## [0.4.0] - 2025-03-28
 
-* Manual release
+### Added
+- Restructured CLI commands for better organization
+- Added dedicated NotebookCommand class for notebook-related commands
+- Improved command structure consistency
 
+### Fixed
+- Fixed `notebook` command not being recognized issue
+- Ensured proper subcommand registration
 
 ## [0.3.4] - 2025-03-28
 

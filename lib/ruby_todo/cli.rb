@@ -26,6 +26,30 @@ module RubyTodo
       true
     end
 
+    # Notebook commands
+    class NotebookCommand < Thor
+      desc "create NAME", "Create a new notebook"
+      def create(name)
+        Notebook.create(name: name)
+        puts "Created notebook: #{name}".green
+      end
+
+      desc "list", "List all notebooks"
+      def list
+        notebooks = Notebook.all
+        if notebooks.empty?
+          puts "No notebooks found. Create one with 'ruby_todo notebook create NAME'".yellow
+          return
+        end
+
+        table = TTY::Table.new(
+          header: ["ID", "Name", "Tasks", "Created At"],
+          rows: notebooks.map { |n| [n.id, n.name, n.tasks.count, n.created_at] }
+        )
+        puts table.render(:ascii)
+      end
+    end
+
     # Template commands
     class TemplateCommand < Thor
       desc "create NAME", "Create a new task template"
@@ -179,26 +203,12 @@ module RubyTodo
       say "Ruby Todo has been initialized successfully!".green
     end
 
-    desc "notebook create [NAME]", "Create a new notebook"
-    def create(name)
-      Notebook.create(name: name)
-      say "Created notebook: #{name}".green
-    end
+    # Register subcommands
+    desc "notebook SUBCOMMAND", "Manage notebooks"
+    subcommand "notebook", NotebookCommand
 
-    desc "notebook list", "List all notebooks"
-    def list
-      notebooks = Notebook.all
-      if notebooks.empty?
-        say "No notebooks found. Create one with 'ruby_todo notebook create [NAME]'".yellow
-        return
-      end
-
-      table = TTY::Table.new(
-        header: ["ID", "Name", "Tasks", "Created At"],
-        rows: notebooks.map { |n| [n.id, n.name, n.tasks.count, n.created_at] }
-      )
-      puts table.render(:ascii)
-    end
+    desc "template SUBCOMMAND", "Manage task templates"
+    subcommand "template", TemplateCommand
 
     desc "task add [NOTEBOOK] [TITLE]", "Add a new task to a notebook"
     method_option :description, type: :string, desc: "Task description"
@@ -568,9 +578,6 @@ module RubyTodo
         say "Imported #{count} tasks into notebook '#{notebook.name}'".green
       end
     end
-
-    desc "template SUBCOMMAND", "Manage task templates"
-    subcommand "template", TemplateCommand
 
     # Task-related command aliases
     map "task:list" => "task_list"
