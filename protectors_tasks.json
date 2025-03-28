@@ -36,35 +36,35 @@
       "due_date": null
     },
     {
-      "title": "Migrate MAN-Vintage/questions-engine-frontend to barracua org",
-      "description": "Repository migration from MAN-Vintage to barracua organization",
+      "title": "Migrate MAN-Vintage/questions-engine-frontend to barracuda org",
+      "description": "Repository migration from MAN-Vintage to barracuda organization",
       "status": "todo",
       "priority": "medium",
-      "tags": "migration,repository,barracua,vintage",
+      "tags": "migration,repository,barracuda,vintage",
       "due_date": null
     },
     {
-      "title": "Migrate MAN-Vintage/question-engine-api to barracua org",
-      "description": "Repository migration from MAN-Vintage to barracua organization",
+      "title": "Migrate MAN-Vintage/question-engine-api to barracuda org",
+      "description": "Repository migration from MAN-Vintage to barracuda organization",
       "status": "todo",
       "priority": "medium",
-      "tags": "migration,repository,barracua,vintage",
+      "tags": "migration,repository,barracuda,vintage",
       "due_date": null
     },
     {
-      "title": "Migrate MAN-Fireflies/cr-popout-ui to barracua org",
-      "description": "Repository migration from MAN-Fireflies to barracua organization",
+      "title": "Migrate MAN-Fireflies/cr-popout-ui to barracuda org",
+      "description": "Repository migration from MAN-Fireflies to barracuda organization",
       "status": "todo",
       "priority": "medium",
-      "tags": "migration,repository,barracua,fireflies",
+      "tags": "migration,repository,barracuda,fireflies",
       "due_date": null
     },
     {
-      "title": "Migrate MAN-Fireflies/cr-popout-api to barracua org",
-      "description": "Repository migration from MAN-Fireflies to barracua organization",
+      "title": "Migrate MAN-Fireflies/cr-popout-api to barracuda org",
+      "description": "Repository migration from MAN-Fireflies to barracuda organization",
       "status": "todo",
       "priority": "medium",
-      "tags": "migration,repository,barracua,fireflies",
+      "tags": "migration,repository,barracuda,fireflies",
       "due_date": null
     },
     {

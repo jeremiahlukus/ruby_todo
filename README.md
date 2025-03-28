@@ -260,7 +260,27 @@ $ ruby_todo ai ask "Move all tasks related to the API project to in_progress sta
 ```
 
 ```bash
+$ ruby_todo ai ask "Show me all high priority tasks"
+```
+
+```bash
 $ ruby_todo ai ask "Create a JSON to import 5 new tasks for my upcoming vacation"
+```
+
+#### Bulk Operations
+
+The AI assistant can perform bulk operations on all tasks:
+
+```bash
+$ ruby_todo ai ask "Move all tasks to todo"
+```
+
+```bash
+$ ruby_todo ai ask "Move all tasks to in_progress"
+```
+
+```bash
+$ ruby_todo ai ask "Show me all task statistics"
 ```
 
 Pass in an API key directly (if not configured):
