@@ -16,6 +16,12 @@ module RubyTodo
   class CLI < Thor
     include Thor::Actions
 
+    map %w[--version -v] => :version
+    desc "version", "Show the Ruby Todo version"
+    def version
+      puts "Ruby Todo version #{RubyTodo::VERSION}"
+    end
+
     def self.exit_on_failure?
       true
     end
@@ -842,12 +848,6 @@ module RubyTodo
       return nil unless text
 
       text.length > length ? "#{text[0...length]}..." : text
-    end
-
-    map %w[--version -v] => :version
-    desc "version", "Show the Ruby Todo version"
-    def version
-      puts "Ruby Todo version #{RubyTodo::VERSION}"
     end
   end
 end

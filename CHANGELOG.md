@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.2] - 2024-03-28
+
+### Added
+- Improved exposure of --version flag for CLI command
+
 ## [0.3.1] - 2024-03-27
 
 ### Fixed
