@@ -78,7 +78,10 @@ jobs:
         NEW_VERSION=${{ steps.next_version.outputs.next_version }}
         DATE=$(date +%Y-%m-%d)
         sed -i "1i ## [$NEW_VERSION] - $DATE\n\n* Manual release\n\n" CHANGELOG.md
-    
+
+    - name: Bundle Install
+      run: bundle install  
+      
     - name: Build gem
       run: bundle exec rake build
       

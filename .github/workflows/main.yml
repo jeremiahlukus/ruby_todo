@@ -23,6 +23,8 @@ jobs:
       with:
         ruby-version: ${{ matrix.ruby }}
         bundler-cache: false
+    - name: Bundle Install
+      run: bundle install  
     - name: Run RuboCop
       run: bundle exec rubocop
     - name: Run tests
