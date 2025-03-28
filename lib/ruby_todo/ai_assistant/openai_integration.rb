@@ -10,7 +10,7 @@ module RubyTodo
          ruby_todo task:list [NOTEBOOK]
          - Lists all tasks in a notebook or all notebooks if no name provided
          - To filter by status: ruby_todo task:list [NOTEBOOK] --status STATUS
-         - Example: ruby_todo task:list protectors --status in_progress
+         - Example: ruby_todo task:list ExampleNotebook --status in_progress
 
       2. Search tasks:
          ruby_todo task:search SEARCH_TERM
@@ -147,10 +147,10 @@ module RubyTodo
       prompt += "\n- To move a task to a status: ruby_todo task:move [NOTEBOOK] [TASK_ID] [STATUS]"
 
       prompt += "\n\nExamples of specific requests and corresponding commands:"
-      prompt += "\n- 'show me all high priority tasks' → ruby_todo task:list protectors --priority high"
-      prompt += "\n- 'list tasks that are in progress' → ruby_todo task:list protectors --status in_progress"
+      prompt += "\n- 'show me all high priority tasks' → ruby_todo task:list ExampleNotebook --priority high"
+      prompt += "\n- 'list tasks that are in progress' → ruby_todo task:list ExampleNotebook --status in_progress"
       prompt += "\n- 'show me all notebooks' → ruby_todo notebook:list"
-      prompt += "\n- 'move task 5 to done' → ruby_todo task:move protectors 5 done"
+      prompt += "\n- 'move task 5 to done' → ruby_todo task:move ExampleNotebook 5 done"
       prompt
     end
 
@@ -178,20 +178,24 @@ module RubyTodo
     end
 
     def build_final_instructions
+      # Get the default notebook name
+      default_notebook = RubyTodo::Notebook.default_notebook&.name || "YourNotebook"
+
       prompt = "\n\nEven if no tasks match a search or if your request isn't about task movement, "
-      prompt += "I still need you to return a JSON response with commands and explanation."
+      prompt += "I still need you to return a JSON response with commands and explanation. The following examples use the current default notebook '#{default_notebook}'."
       prompt += "\n\nExample JSON Response:"
       prompt += "\n```json"
       prompt += "\n{"
       prompt += "\n  \"commands\": ["
-      prompt += "\n    \"ruby_todo task:list protectors\","
-      prompt += "\n    \"ruby_todo stats protectors\""
+      prompt += "\n    \"ruby_todo task:list #{default_notebook}\","
+      prompt += "\n    \"ruby_todo stats #{default_notebook}\""
       prompt += "\n  ],"
-      prompt += "\n  \"explanation\": \"Listing all tasks and statistics for the protectors notebook\""
+      prompt += "\n  \"explanation\": \"Listing all tasks and statistics for the #{default_notebook} notebook\""
       prompt += "\n}"
       prompt += "\n```"
 
       prompt += "\n\nNote that all commands use colons, not underscores (e.g., 'task:list', not 'task_list')."
+      prompt += "\n\nIf no notebook is specified in the user's request, use the default notebook '#{default_notebook}'."
       prompt
     end
 

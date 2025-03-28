@@ -278,14 +278,18 @@ module RubyTodo
     def move_single_task(task, status)
       say "\nMoving task #{task[:task_id]} in notebook #{task[:notebook]} to #{status}".blue if options[:verbose]
 
-      notebook = RubyTodo::Notebook.find_by(name: task[:notebook])
-      return say "Notebook '#{task[:notebook]}' not found".red unless notebook
+      # Try to find the notebook, first by name, then use default if not found
+      notebook = RubyTodo::Notebook.find_by(name: task[:notebook]) || RubyTodo::Notebook.default_notebook
+      unless notebook
+        say "No notebook found (neither specified nor default)".red
+        return
+      end
 
       task_record = notebook.tasks.find_by(id: task[:task_id])
-      return say "Task #{task[:task_id]} not found in notebook '#{task[:notebook]}'".red unless task_record
+      return say "Task #{task[:task_id]} not found in notebook '#{notebook.name}'".red unless task_record
 
       if task_record.update(status: status)
-        say "Task #{task[:task_id]} moved to #{status}".green
+        say "Moved task #{task[:task_id]} to #{status}".green
       else
         say "Error moving task #{task[:task_id]}: #{task_record.errors.full_messages.join(", ")}".red
       end

@@ -224,16 +224,21 @@ module RubyTodo
     private
 
     def find_all_tasks
+      # Start with the default notebook if it exists
+      notebooks = if RubyTodo::Notebook.default_notebook
+                   [RubyTodo::Notebook.default_notebook]
+                 else
+                   RubyTodo::Notebook.all
+                 end
+
       tasks = []
-      RubyTodo::Notebook.all.each do |notebook|
+      notebooks.each do |notebook|
         notebook.tasks.each do |task|
           tasks << {
+            notebook: notebook.name,
             task_id: task.id,
             title: task.title,
-            description: task.description,
-            status: task.status,
-            tags: task.tags,
-            notebook: notebook.name
+            status: task.status
           }
         end
       end
@@ -248,9 +253,7 @@ module RubyTodo
           task_info = {
             task_id: task.id,
             title: task.title,
-            description: task.description,
             status: task.status,
-            tags: task.tags,
             notebook: notebook.name
           }
 
