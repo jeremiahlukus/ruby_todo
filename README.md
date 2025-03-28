@@ -12,6 +12,7 @@ A powerful CLI todo list manager with multi-notebook support and automated task 
 - Task statistics and analytics
 - Task export and import (JSON, CSV)
 - Task templates with placeholders
+- AI assistant for natural language task management
 - Beautiful CLI interface with colored output
 - SQLite database for persistent storage
 
@@ -202,21 +203,6 @@ List all templates:
 $ ruby_todo template list
 ```
 
-Show template details:
-```bash
-$ ruby_todo template show "Weekly Report"
-```
-
-Use a template to create a task:
-```bash
-$ ruby_todo template use "Weekly Report" "Work" --replacements week="12"
-```
-
-Delete a template:
-```bash
-$ ruby_todo template delete "Weekly Report"
-```
-
 ## Template Placeholders
 
 Templates support the following placeholder types:
@@ -230,83 +216,61 @@ Templates support the following placeholder types:
   - `{month}`: Current month
   - `{year}`: Current year
 
-## Development
+## AI Assistant
 
-After checking out the repo, run `bundle install` to install dependencies. Then, run `rake test` to run the tests. You can also run `rubocop` to check the code style.
+Ruby Todo includes an AI assistant powered by OpenAI's gpt-4o-mini model that can help you manage your tasks using natural language.
 
-To install this gem onto your local machine, run `bundle exec rake install`.
+### Configuration
 
-### CI/CD
+Configure your AI assistant:
+```bash
+$ ruby_todo ai configure
+```
 
-This project uses GitHub Actions for continuous integration and delivery:
+### API Key Options
 
-- **CI Workflow**: Runs tests and RuboCop on multiple Ruby versions for every push and pull request
-- **Release Workflow**: Automatically increments version number, updates CHANGELOG, creates a GitHub release, and publishes to RubyGems when code is pushed to the main branch
+There are two ways to provide your OpenAI API key:
 
-To release a new version, just merge your changes to the main branch. The automation will:
-1. Increment the patch version
-2. Update the CHANGELOG.md file
-3. Run tests to ensure everything works
-4. Build and publish the gem to RubyGems
-5. Create a GitHub release
-
-For manual releases or version changes (major or minor), update the version in `lib/ruby_todo/version.rb` before merging to main.
-
-## Contributing
-
-Bug reports and pull requests are welcome on GitHub at https://github.com/jeremiahparrack/ruby_todo.
-
-## License
-
-The gem is available as open source under the terms of the MIT License.
-
-## Troubleshooting
-
-### Command not found after installation
-
-If you see "command not found" after installing the gem, check the following:
-
-1. Verify the gem is installed:
+1. **Configure once with the setup command** (recommended):
    ```bash
-   $ gem list ruby_todo
+   $ ruby_todo ai configure
+   ```
+   This prompts you to enter your OpenAI API key and securely saves it in `~/.ruby_todo/ai_config.json`.
+
+2. **Use environment variables**:
+   ```bash
+   $ export OPENAI_API_KEY=your_api_key_here
+   $ ruby_todo ai ask "your prompt"
    ```
 
-2. Check your gem installation path:
+3. **Pass the API key directly in the command**:
    ```bash
-   $ gem environment
+   $ ruby_todo ai ask "your prompt" --api-key=your_api_key_here
    ```
 
-3. Make sure your PATH includes the gem bin directory shown in the environment output.
+### Using the AI Assistant
 
-4. You may need to run:
-   ```bash
-   $ rbenv rehash  # If using rbenv
-   ```
-   or
-   ```bash
-   $ rvm rehash    # If using RVM
-   ```
-
-### Database Issues
-
-If you encounter database issues:
-
-1. Try resetting the database:
-   ```bash
-   $ rm ~/.ruby_todo/ruby_todo.db
-   $ ruby_todo init
-   ```
-
-2. Check file permissions:
-   ```bash
-   $ ls -la ~/.ruby_todo/
-   ```
-
-### Getting Help
-
-Run any command with `--help` to see available options:
+Ask the AI assistant to perform actions:
+```bash
+$ ruby_todo ai ask "Create a new task in my Work notebook to update the documentation by next Friday"
+```
 
 ```bash
-$ ruby_todo --help
-$ ruby_todo task add --help
+$ ruby_todo ai ask "Move all tasks related to the API project to in_progress status"
 ```
+
+```bash
+$ ruby_todo ai ask "Create a JSON to import 5 new tasks for my upcoming vacation"
+```
+
+Pass in an API key directly (if not configured):
+```bash
+$ ruby_todo ai ask "What tasks are overdue?" --api-key=your_api_key_here --api=claude
+```
+
+Enable verbose mode to see full AI responses:
+```bash
+$ ruby_todo ai ask "Summarize my Work notebook" --verbose
+```
+
+## Development

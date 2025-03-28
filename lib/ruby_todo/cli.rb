@@ -11,6 +11,7 @@ require_relative "models/notebook"
 require_relative "models/task"
 require_relative "models/template"
 require_relative "database"
+require_relative "commands/ai_assistant"
 
 module RubyTodo
   class CLI < Thor
@@ -209,6 +210,10 @@ module RubyTodo
 
     desc "template SUBCOMMAND", "Manage task templates"
     subcommand "template", TemplateCommand
+
+    # Register AI Assistant subcommand
+    desc "ai SUBCOMMAND", "Use AI assistant"
+    subcommand "ai", AIAssistantCommand
 
     desc "task add [NOTEBOOK] [TITLE]", "Add a new task to a notebook"
     method_option :description, type: :string, desc: "Task description"
