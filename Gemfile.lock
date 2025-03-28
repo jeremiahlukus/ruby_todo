@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    ruby_todo (0.4.0)
+    ruby_todo (0.4.1)
       activerecord (~> 7.1)
       colorize (~> 1.1)
       sqlite3 (~> 1.7)
