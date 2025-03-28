@@ -85,6 +85,7 @@ jobs:
         git add lib/ruby_todo/version.rb CHANGELOG.md
         git commit -m "Bump version to $NEW_VERSION [ci skip]"
         git tag v$NEW_VERSION
+        git pull --rebase origin main
         git push
         git push --tags
     
