@@ -78,20 +78,23 @@ jobs:
         NEW_VERSION=${{ steps.next_version.outputs.next_version }}
         DATE=$(date +%Y-%m-%d)
         sed -i "1i ## [$NEW_VERSION] - $DATE\n\n* Manual release\n\n" CHANGELOG.md
+    
+    - name: Build gem
+      run: bundle exec rake build
+      
+    - name: Update bundle after version change
+      run: bundle install
           
-    - name: Commit version bump
+    - name: Commit all changes and push
       run: |
         NEW_VERSION=${{ steps.next_version.outputs.next_version }}
-        git add lib/ruby_todo/version.rb CHANGELOG.md
+        git add lib/ruby_todo/version.rb CHANGELOG.md Gemfile.lock
         git commit -m "Bump version to $NEW_VERSION [ci skip]"
         git tag v$NEW_VERSION
         git pull --rebase origin main
         git push
         git push --tags
     
-    - name: Build gem
-      run: bundle exec rake build
-      
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
