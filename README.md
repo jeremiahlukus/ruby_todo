@@ -47,17 +47,17 @@ After installing the gem:
 
 2. Create your first notebook:
    ```bash
-   $ ruby_todo notebook create "Personal"
+   $ ruby_todo notebook:create "Personal"
    ```
 
 3. Add your first task:
    ```bash
-   $ ruby_todo task add "Personal" "My first task"
+   $ ruby_todo task:add "Personal" "My first task"
    ```
 
 4. List your tasks:
    ```bash
-   $ ruby_todo task list "Personal"
+   $ ruby_todo task:list "Personal"
    ```
 
 All `ruby_todo` commands can be run from anywhere in your terminal as they're installed globally with the gem.
@@ -75,98 +75,91 @@ $ ruby_todo init
 
 Create a new notebook:
 ```bash
-$ ruby_todo notebook create "Work"
+$ ruby_todo notebook:create "Work"
 ```
 
 List all notebooks:
 ```bash
-$ ruby_todo notebook list
+$ ruby_todo notebook:list
+```
+
+Set default notebook:
+```bash
+$ ruby_todo notebook:set_default "Work"
 ```
 
 ### Task Management
 
 Add a task to a notebook:
 ```bash
-$ ruby_todo task add "Work" "Complete project documentation"
+$ ruby_todo task:add "Work" "Complete project documentation"
 ```
 
 Add a task with additional details:
 ```bash
-$ ruby_todo task add "Work" "Complete project documentation" --description "Write the API documentation for the new features" --due_date "2024-04-10 14:00" --priority "high" --tags "project,documentation,urgent"
+$ ruby_todo task:add "Work" "Complete project documentation" --description "Write the API documentation for the new features" --due_date "2024-04-10 14:00" --priority "high" --tags "project,documentation,urgent"
 ```
 
 List tasks in a notebook:
 ```bash
-$ ruby_todo task list "Work"
+$ ruby_todo task:list "Work"
 ```
 
 Filter tasks by status:
 ```bash
-$ ruby_todo task list "Work" --status "in_progress"
+$ ruby_todo task:list "Work" --status "in_progress"
 ```
 
 Show only overdue tasks:
 ```bash
-$ ruby_todo task list "Work" --overdue
+$ ruby_todo task:list "Work" --overdue
 ```
 
 Show only high priority tasks:
 ```bash
-$ ruby_todo task list "Work" --priority "high"
+$ ruby_todo task:list "Work" --priority "high"
 ```
 
 Filter by tags:
 ```bash
-$ ruby_todo task list "Work" --tags "urgent,important"
+$ ruby_todo task:list "Work" --tags "urgent,important"
 ```
 
 View detailed information about a task:
 ```bash
-$ ruby_todo task show "Work" 1
+$ ruby_todo task:show "Work" 1
 ```
 
 Edit a task:
 ```bash
-$ ruby_todo task edit "Work" 1 --title "New title" --priority "medium" --due_date "2024-04-15 10:00"
+$ ruby_todo task:edit "Work" 1 --title "New title" --priority "medium" --due_date "2024-04-15 10:00"
 ```
 
 Move a task to a different status:
 ```bash
-$ ruby_todo task move "Work" 1 "in_progress"
+$ ruby_todo task:move "Work" 1 "in_progress"
 ```
 
 Delete a task:
 ```bash
-$ ruby_todo task delete "Work" 1
+$ ruby_todo task:delete "Work" 1
 ```
 
 ### Search
 
 Search for tasks across all notebooks:
 ```bash
-$ ruby_todo task search "documentation"
+$ ruby_todo task:search "documentation"
 ```
 
 Search within a specific notebook:
 ```bash
-$ ruby_todo task search "documentation" --notebook "Work"
-```
-
-### Statistics
-
-View statistics for all notebooks:
-```bash
-$ ruby_todo stats
-```
-
-View statistics for a specific notebook:
-```bash
-$ ruby_todo stats "Work"
+$ ruby_todo task:search "documentation" --notebook "Work"
 ```
 
 ### Export and Import
 
-Export tasks from a notebook to JSON:
+Export tasks from a notebook:
 ```bash
 $ ruby_todo export "Work" "work_export"
 ```
@@ -195,12 +188,27 @@ $ ruby_todo import "work_export.json" --notebook "New Work"
 
 Create a template:
 ```bash
-$ ruby_todo template create "Weekly Report" --title "Weekly Report {week}" --description "Prepare weekly report for week {week}" --priority "high" --tags "report,weekly" --due_date_offset "5d"
+$ ruby_todo template:create "Weekly Report" --title "Weekly Report {week}" --description "Prepare weekly report for week {week}" --priority "high" --tags "report,weekly" --due_date_offset "5d"
 ```
 
 List all templates:
 ```bash
-$ ruby_todo template list
+$ ruby_todo template:list
+```
+
+Show template details:
+```bash
+$ ruby_todo template:show "Weekly Report"
+```
+
+Delete a template:
+```bash
+$ ruby_todo template:delete "Weekly Report"
+```
+
+Use a template:
+```bash
+$ ruby_todo template:use "Weekly Report" "Work"
 ```
 
 ## Template Placeholders
@@ -218,13 +226,13 @@ Templates support the following placeholder types:
 
 ## AI Assistant
 
-Ruby Todo includes an AI assistant powered by OpenAI's gpt-4o-mini model that can help you manage your tasks using natural language.
+Ruby Todo includes an AI assistant that can help you manage your tasks using natural language.
 
 ### Configuration
 
 Configure your AI assistant:
 ```bash
-$ ruby_todo ai configure
+$ ruby_todo ai:configure
 ```
 
 ### API Key Options
@@ -233,64 +241,41 @@ There are two ways to provide your OpenAI API key:
 
 1. **Configure once with the setup command** (recommended):
    ```bash
-   $ ruby_todo ai configure
+   $ ruby_todo ai:configure
    ```
-   This prompts you to enter your OpenAI API key and securely saves it in `~/.ruby_todo/ai_config.json`.
+   This prompts you to enter your OpenAI API key and securely saves it.
 
 2. **Use environment variables**:
    ```bash
    $ export OPENAI_API_KEY=your_api_key_here
-   $ ruby_todo ai ask "your prompt"
-   ```
-
-3. **Pass the API key directly in the command**:
-   ```bash
-   $ ruby_todo ai ask "your prompt" --api-key=your_api_key_here
+   $ ruby_todo ai:ask "your prompt"
    ```
 
 ### Using the AI Assistant
 
-Ask the AI assistant to perform actions:
+Here are some example commands you can use with the AI assistant:
+
+Task Creation and Management:
 ```bash
-$ ruby_todo ai ask "Create a new task in my Work notebook to update the documentation by next Friday"
+$ ruby_todo ai:ask "create a new task called 'Test task creation via AI' with high priority"
+$ ruby_todo ai:ask "move migrate arbitration-tf-shared to github actions"
+$ ruby_todo ai:ask "move all tasks to in_progress"
 ```
 
+Task Queries:
 ```bash
-$ ruby_todo ai ask "Move all tasks related to the API project to in_progress status"
+$ ruby_todo ai:ask "show me all high priority tasks"
+$ ruby_todo ai:ask "show me all in progress tasks"
+$ ruby_todo ai:ask "show me all todo tasks"
 ```
 
+Complex Operations:
 ```bash
-$ ruby_todo ai ask "Show me all high priority tasks"
+$ ruby_todo ai:ask "move migrate arbitration-tf-shared and awsappman-tf-accounts-management to github actions"
+$ ruby_todo ai:ask "show statistics for protectors notebook"
+$ ruby_todo ai:ask "move all migrate to barracuda org tasks to done"
 ```
 
-```bash
-$ ruby_todo ai ask "Create a JSON to import 5 new tasks for my upcoming vacation"
-```
-
-#### Bulk Operations
-
-The AI assistant can perform bulk operations on all tasks:
-
-```bash
-$ ruby_todo ai ask "Move all tasks to todo"
-```
-
-```bash
-$ ruby_todo ai ask "Move all tasks to in_progress"
-```
-
-```bash
-$ ruby_todo ai ask "Show me all task statistics"
-```
-
-Pass in an API key directly (if not configured):
-```bash
-$ ruby_todo ai ask "What tasks are overdue?" --api-key=your_api_key_here --api=claude
-```
-
-Enable verbose mode to see full AI responses:
-```bash
-$ ruby_todo ai ask "Summarize my Work notebook" --verbose
-```
+The AI assistant can understand various natural language patterns and execute the appropriate commands for you.
 
 ## Development
