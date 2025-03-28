@@ -182,7 +182,8 @@ module RubyTodo
       default_notebook = RubyTodo::Notebook.default_notebook&.name || "YourNotebook"
 
       prompt = "\n\nEven if no tasks match a search or if your request isn't about task movement, "
-      prompt += "I still need you to return a JSON response with commands and explanation. The following examples use the current default notebook '#{default_notebook}'."
+      prompt += "I still need you to return a JSON response with commands and explanation."
+      prompt += "The following examples use the current default notebook '#{default_notebook}'."
       prompt += "\n\nExample JSON Response:"
       prompt += "\n```json"
       prompt += "\n{"

@@ -226,10 +226,10 @@ module RubyTodo
     def find_all_tasks
       # Start with the default notebook if it exists
       notebooks = if RubyTodo::Notebook.default_notebook
-                   [RubyTodo::Notebook.default_notebook]
-                 else
-                   RubyTodo::Notebook.all
-                 end
+                    [RubyTodo::Notebook.default_notebook]
+                  else
+                    RubyTodo::Notebook.all
+                  end
 
       tasks = []
       notebooks.each do |notebook|
