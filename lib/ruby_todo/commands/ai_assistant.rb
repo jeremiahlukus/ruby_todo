@@ -4,9 +4,12 @@ require "thor"
 require "json"
 require "openai"
 require "dotenv/load"
+require_relative "../ai_assistant/openai_integration"
 
 module RubyTodo
   class AIAssistantCommand < Thor
+    include OpenAIIntegration
+
     desc "ai:ask [PROMPT]", "Ask the AI assistant to perform tasks using natural language"
     method_option :api_key, type: :string, desc: "OpenAI API key"
     method_option :verbose, type: :boolean, default: false, desc: "Show detailed response"
