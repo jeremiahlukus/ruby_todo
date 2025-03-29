@@ -215,7 +215,7 @@ module RubyTodo
       messages = build_messages(prompt, context)
       
       response = client.chat(parameters: {
-        model: "gpt-4",
+        model: "gpt-4o-mini",
         messages: messages,
         temperature: 0.7,
         max_tokens: 1000

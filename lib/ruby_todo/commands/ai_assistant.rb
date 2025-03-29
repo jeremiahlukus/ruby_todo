@@ -105,7 +105,47 @@ module RubyTodo
 
       notebook_name = parts[1]
       title = parts[3]
+      
+      # Extract additional parameters if present
+      description = nil
+      priority = nil
+      tags = nil
+      due_date = nil
+      
+      # Look for --description parameter
+      if title =~ /--description\s+"([^"]+)"/
+        description = $1
+        title = title.gsub(/\s*--description\s+"[^"]+"/, '')
+      end
+      
+      # Look for --priority parameter
+      if title =~ /--priority\s+(\w+)/
+        priority = $1
+        title = title.gsub(/\s*--priority\s+\w+/, '')
+      end
+      
+      # Look for --tags parameter
+      if title =~ /--tags\s+"([^"]+)"/
+        tags = $1
+        title = title.gsub(/\s*--tags\s+"[^"]+"/, '')
+      end
+      
+      # Look for --due_date parameter
+      if title =~ /--due_date\s+"([^"]+)"/
+        due_date = $1
+        title = title.gsub(/\s*--due_date\s+"[^"]+"/, '')
+      end
+      
+      # Clean up any extra whitespace
+      title = title.strip
+      
+      # Create the task with all parameters
       cli_args = ["task:add", notebook_name, title]
+      cli_args.push("--description", description) if description
+      cli_args.push("--priority", priority) if priority
+      cli_args.push("--tags", tags) if tags
+      cli_args.push("--due_date", due_date) if due_date
+      
       RubyTodo::CLI.start(cli_args)
     end
 
