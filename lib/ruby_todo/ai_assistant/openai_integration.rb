@@ -211,128 +211,79 @@ module RubyTodo
     include OpenAIPromptBuilder
 
     def query_openai(prompt, context, api_key)
-      say "\nMaking OpenAI API call...".blue if options[:verbose]
       client = OpenAI::Client.new(access_token: api_key)
       messages = build_messages(prompt, context)
-      say "Sending request to OpenAI..." if options[:verbose]
+      
+      response = client.chat(parameters: {
+        model: "gpt-4",
+        messages: messages,
+        temperature: 0.7,
+        max_tokens: 1000
+      })
 
-      response = client.chat(parameters: build_openai_parameters(messages))
-
-      say "\nOpenAI API call completed".green if options[:verbose]
-
-      log_raw_response(response) if options[:verbose]
-
-      parsed_response = handle_openai_response(response)
-
-      log_parsed_response(parsed_response) if options[:verbose] && parsed_response
-
-      parsed_response
+      handle_openai_response(response)
     end
 
     private
 
-    def build_openai_parameters(messages)
-      {
-        model: "gpt-4o-mini",
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: 500
-      }
+    def build_messages(prompt, context)
+      [
+        {
+          role: "system",
+          content: system_prompt(context)
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ]
     end
 
-    def log_raw_response(response)
-      say "\n=== RAW OPENAI RESPONSE ==="
-      if response && response.dig("choices", 0, "message", "content")
-        say response["choices"][0]["message"]["content"]
-      else
-        say "No content in response"
-      end
-      say "=== END RAW RESPONSE ===\n"
-    end
+    def system_prompt(context)
+      <<~PROMPT
+        You are an AI assistant for the Ruby Todo CLI application. Your role is to help users manage their tasks and notebooks using natural language.
 
-    def log_parsed_response(parsed_response)
-      say "\n=== PARSED RESPONSE DETAILS ==="
-      say "Commands array type: #{parsed_response["commands"].class}"
-      say "Number of commands: #{parsed_response["commands"].size}"
-      parsed_response["commands"].each_with_index do |cmd, i|
-        say "Command #{i + 1}: '#{cmd}'"
-      end
-      say "=== END RESPONSE DETAILS ===\n"
+        Available commands:
+        - task:add [notebook] [title] - Create a new task
+        - task:move [notebook] [task_id] [status] - Move a task to a new status (todo/in_progress/done/archived)
+        - task:list [notebook] [--status status] [--priority priority] - List tasks
+        - task:delete [notebook] [task_id] - Delete a task
+        - notebook:create [name] - Create a new notebook
+        - notebook:list - List all notebooks
+        - stats [notebook] - Show statistics
+
+        Current context:
+        #{JSON.pretty_generate(context)}
+
+        Your task is to:
+        1. Understand the user's natural language request
+        2. Convert it into one or more CLI commands
+        3. Provide a brief explanation of what you're doing
+
+        Respond with a JSON object containing:
+        {
+          "commands": ["command1", "command2", ...],
+          "explanation": "Brief explanation of what you're doing"
+        }
+      PROMPT
     end
 
     def handle_openai_response(response)
       return nil unless response&.dig("choices", 0, "message", "content")
 
       content = response["choices"][0]["message"]["content"]
-      say "\nAI Response:\n#{content}\n" if options[:verbose]
-
       parse_json_from_content(content)
     end
 
     def parse_json_from_content(content)
-      # Process the content to extract JSON
-      json_content = process_json_content(content)
+      # Extract JSON from the content (it might be wrapped in ```json blocks)
+      json_match = content.match(/```json\n(.+?)\n```/m) || content.match(/\{.+\}/m)
+      return nil unless json_match
 
-      say "\nProcessed JSON content:\n#{json_content}\n" if options[:verbose]
-
-      # Parse the JSON
-      result = JSON.parse(json_content)
-
-      # Ensure required keys exist
-      validate_and_fix_json_result(result)
-
-      result
-    rescue JSON::ParserError => e
-      handle_json_parse_error(content, e)
-    end
-
-    def process_json_content(content)
-      # Remove markdown formatting if present
-      json_content = content.gsub(/```(?:json)?\n(.*?)\n```/m, '\1')
-      # Strip any leading/trailing whitespace, braces are required
-      json_content = json_content.strip
-      # Add braces if they're missing
-      json_content = "{#{json_content}}" unless json_content.start_with?("{") && json_content.end_with?("}")
-
-      json_content
-    end
-
-    def validate_and_fix_json_result(result)
-      # Ensure we have the required keys
-      if !result.key?("commands") || !result["commands"].is_a?(Array)
-        say "Warning: AI response missing 'commands' array. Adding empty array.".yellow if options[:verbose]
-        result["commands"] = []
-      end
-
-      if !result.key?("explanation") || !result["explanation"].is_a?(String)
-        say "Warning: AI response missing 'explanation'. Adding default.".yellow if options[:verbose]
-        result["explanation"] = "Command execution completed."
-      end
-    end
-
-    def handle_json_parse_error(content, error)
-      say "Error parsing AI response: #{error.message}".red if options[:verbose]
-
-      # Try to extract commands from plain text as fallback
-      commands = extract_commands_from_text(content)
-
-      if commands.any?
-        say "Extracted #{commands.size} commands from text response".yellow if options[:verbose]
-        return {
-          "commands" => commands,
-          "explanation" => "Commands extracted from non-JSON response."
-        }
-      end
-
+      json_str = json_match[0].gsub(/```json\n|```/, "")
+      JSON.parse(json_str)
+    rescue JSON::ParserError
       nil
-    end
-
-    def extract_commands_from_text(content)
-      commands = []
-      content.scan(/ruby_todo\s+\S+(?:\s+\S+)*/) do |cmd|
-        commands << cmd.strip
-      end
-      commands
     end
   end
 end
