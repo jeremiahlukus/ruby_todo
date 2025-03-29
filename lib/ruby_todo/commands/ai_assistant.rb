@@ -203,7 +203,7 @@ module RubyTodo
                 status: task.status,
                 tags: task.tags,
                 description: task.description,
-                deadline: task.deadline
+                due_date: task.due_date
               }
             end
           }
