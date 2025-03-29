@@ -123,7 +123,90 @@ module RubyTodo
     def execute_task_list_command(cmd)
       parts = cmd.split(/\s+/)
       cli_args = ["task:list"] + parts[1..]
-      RubyTodo::CLI.start(cli_args)
+      
+      # Get the notebook name
+      notebook_name = parts[1] if parts.size > 1
+      notebook = RubyTodo::Notebook.find_by(name: notebook_name)
+      
+      unless notebook
+        say "Notebook '#{notebook_name}' not found".red
+        return
+      end
+
+      tasks = notebook.tasks
+
+      # Apply any filters from the command
+      tasks = apply_task_filters(tasks, parts[2..])
+
+      if tasks.empty?
+        say "No tasks found in notebook '#{notebook_name}'".yellow
+        return
+      end
+
+      # Prepare rows with wrapped text
+      rows = tasks.map do |t|
+        [
+          t.id,
+          wrap_text(t.title, 48),
+          format_status(t.status),
+          format_priority(t.priority),
+          format_due_date(t.due_date),
+          truncate_text(t.tags, 18),
+          wrap_text(t.description, 28)
+        ]
+      end
+
+      # Display the table with proper formatting
+      puts format_table_with_wrapping(
+        ["ID", "Title", "Status", "Priority", "Due Date", "Tags", "Description"],
+        rows
+      )
+    end
+
+    def apply_task_filters(tasks, args)
+      return tasks if args.empty?
+
+      args.each_with_index do |arg, i|
+        case arg
+        when "--status"
+          tasks = tasks.where(status: args[i + 1]) if args[i + 1]
+        when "--priority"
+          tasks = tasks.where(priority: args[i + 1]) if args[i + 1]
+        when "--tags"
+          if args[i + 1]
+            tag_filters = args[i + 1].split(",").map(&:strip)
+            tasks = tasks.select { |t| t.tags && tag_filters.any? { |tag| t.tags.include?(tag) } }
+          end
+        end
+      end
+
+      tasks
+    end
+
+    def format_status(status)
+      case status
+      when "todo" then "Todo".yellow
+      when "in_progress" then "In Progress".blue
+      when "done" then "Done".green
+      when "archived" then "Archived".gray
+      else status
+      end
+    end
+
+    def format_priority(priority)
+      return "None" unless priority
+
+      case priority
+      when "high" then priority.red
+      when "medium" then priority.yellow
+      when "low" then priority.green
+      else priority
+      end
+    end
+
+    def format_due_date(date)
+      return "No due date" unless date
+      date.strftime("%Y-%m-%d %H:%M")
     end
 
     def execute_task_delete_command(cmd)
@@ -212,6 +295,43 @@ module RubyTodo
           }
         end
       }
+    end
+
+    def truncate_text(text, max_length = 50, ellipsis = "...")
+      return "" unless text
+      return text if text.length <= max_length
+
+      text[0...(max_length - ellipsis.length)] + ellipsis
+    end
+
+    def wrap_text(text, width = 50)
+      return "" unless text
+      return text if text.length <= width
+
+      text.gsub(/(.{1,#{width}})(\s+|$)/, "\\1\n").strip
+    end
+
+    def format_table_with_wrapping(headers, rows)
+      table = TTY::Table.new(
+        header: headers,
+        rows: rows
+      )
+
+      table.render(:ascii, padding: [0, 1], width: 150, resize: true) do |renderer|
+        renderer.border.separator = :each_row
+        renderer.multiline = true
+        
+        # Configure column widths
+        renderer.column_widths = [
+          5,  # ID
+          50, # Title
+          12, # Status
+          10, # Priority
+          20, # Due Date
+          20, # Tags
+          30  # Description
+        ]
+      end
     end
   end
 end
