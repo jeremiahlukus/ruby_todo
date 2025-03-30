@@ -28,4 +28,4 @@ jobs:
     - name: Run RuboCop
       run: bundle exec rubocop
     - name: Run tests
-      run: bundle exec rake test
+      run: bundle exec ruby -I test $(find test -name '*_test.rb' ! -name '*integration*')

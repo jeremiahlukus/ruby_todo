@@ -130,37 +130,84 @@ module RubyTodo
     end
 
     def test_statistics
-      Task.create(
+      # Clear any existing tasks
+      @notebook.tasks.delete_all
+
+      # Create tasks in a transaction to ensure atomicity
+      Task.transaction do
+        Task.create!(
+          notebook: @notebook,
+          title: "Todo Task",
+          status: "todo",
+          priority: "high"
+        )
+
+        Task.create!(
+          notebook: @notebook,
+          title: "In Progress Task",
+          status: "in_progress",
+          priority: "medium"
+        )
+
+        Task.create!(
+          notebook: @notebook,
+          title: "Done Task",
+          status: "done",
+          priority: "low"
+        )
+      end
+
+      # Force reload of tasks to ensure fresh data
+      @notebook.reload
+
+      # Debug output
+      puts "\nDebug: All tasks in notebook:"
+      @notebook.tasks.reload.each do |task|
+        puts "Task: #{task.title}, Status: #{task.status}, Priority: #{task.priority}"
+      end
+
+      stats = @notebook.statistics
+      puts "\nDebug: Statistics:"
+      stats.each do |key, value|
+        puts "#{key}: #{value}"
+      end
+
+      # Verify each statistic individually with descriptive messages
+      assert_equal 3, stats[:total], "Expected 3 total tasks"
+      assert_equal 1, stats[:todo], "Expected 1 todo task"
+      assert_equal 1, stats[:in_progress], "Expected 1 in_progress task"
+      # Done tasks are no longer auto-archived
+      assert_equal 1, stats[:done], "Expected 1 done task but got #{stats[:done]}"
+      assert_equal 0, stats[:archived], "Expected 0 archived tasks"
+      assert_equal 1, stats[:high_priority], "Expected 1 high priority task"
+      assert_equal 1, stats[:medium_priority], "Expected 1 medium priority task"
+      assert_equal 1, stats[:low_priority], "Expected 1 low priority task"
+    end
+
+    def test_done_tasks_not_auto_archived
+      # Create a task in todo state
+      task = Task.create!(
         notebook: @notebook,
-        title: "Todo Task",
+        title: "Test Task",
         status: "todo",
         priority: "high"
       )
 
-      Task.create(
-        notebook: @notebook,
-        title: "In Progress Task",
-        status: "in_progress",
-        priority: "medium"
-      )
+      # Move it to done
+      task.update!(status: "done")
+      task.reload
 
-      Task.create(
-        notebook: @notebook,
-        title: "Done Task",
-        status: "done",
-        priority: "low"
-      )
+      # Debug output
+      puts "\nDebug: Task after marking as done:"
+      puts "Task: #{task.title}, Status: #{task.status}"
 
+      # Verify it stays in done status
+      assert_equal "done", task.status, "Task should remain in 'done' status and not be auto-archived"
+
+      # Double check through notebook statistics
       stats = @notebook.statistics
-
-      assert_equal 3, stats[:total]
-      assert_equal 1, stats[:todo]
-      assert_equal 1, stats[:in_progress]
-      assert_equal 1, stats[:done] # Done tasks are no longer auto-archived
-      assert_equal 0, stats[:archived]
-      assert_equal 1, stats[:high_priority]
-      assert_equal 1, stats[:medium_priority]
-      assert_equal 1, stats[:low_priority]
+      assert_equal 1, stats[:done], "Should have 1 done task"
+      assert_equal 0, stats[:archived], "Should have 0 archived tasks"
     end
   end
 end

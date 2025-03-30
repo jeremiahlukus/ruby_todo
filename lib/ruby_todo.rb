@@ -12,6 +12,8 @@ require_relative "ruby_todo/concerns/import_export"
 require_relative "ruby_todo/commands/notebook_commands"
 require_relative "ruby_todo/commands/template_commands"
 require_relative "ruby_todo/commands/ai_commands"
+require_relative "ruby_todo/commands/ai_assistant"
+require_relative "ruby_todo/ai_assistant/openai_integration"
 require_relative "ruby_todo/cli"
 
 module RubyTodo
