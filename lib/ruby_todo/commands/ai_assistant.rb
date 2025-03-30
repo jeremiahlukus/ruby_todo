@@ -74,7 +74,7 @@ module RubyTodo
       return unless cmd
 
       say "\nExecuting command: #{cmd}" if options[:verbose]
-      
+
       # Split the command into parts
       parts = cmd.split(/\s+/)
       command_type = parts[0]
@@ -100,163 +100,82 @@ module RubyTodo
     end
 
     def execute_task_add_command(cmd)
-      parts = cmd.split(/\s+/, 4)
-      return unless parts.size >= 4
+      # Match notebook name and title in quotes, followed by optional parameters
+      if cmd =~ /task:add\s+"([^"]+)"\s+"([^"]+)"(?:\s+(.*))?/
+        notebook_name = Regexp.last_match(1)
+        title = Regexp.last_match(2)
+        params = Regexp.last_match(3)
 
-      notebook_name = parts[1]
-      title = parts[3]
-      
-      # Extract additional parameters if present
-      description = nil
-      priority = nil
-      tags = nil
-      due_date = nil
-      
-      # Look for --description parameter
-      if title =~ /--description\s+"([^"]+)"/
-        description = $1
-        title = title.gsub(/\s*--description\s+"[^"]+"/, '')
+        cli_args = ["task:add", notebook_name, title]
+
+        # Extract optional parameters
+        if params
+          # Description
+          if params =~ /--description\s+"([^"]+)"/
+            cli_args.push("--description", Regexp.last_match(1))
+          end
+
+          # Priority
+          if params =~ /--priority\s+(\w+)/
+            cli_args.push("--priority", Regexp.last_match(1))
+          end
+
+          # Tags
+          if params =~ /--tags\s+"([^"]+)"/
+            cli_args.push("--tags", Regexp.last_match(1))
+          end
+
+          # Due date
+          if params =~ /--due_date\s+"([^"]+)"/
+            cli_args.push("--due_date", Regexp.last_match(1))
+          end
+        end
+
+        RubyTodo::CLI.start(cli_args)
+      else
+        say "Invalid task:add command format".red
       end
-      
-      # Look for --priority parameter
-      if title =~ /--priority\s+(\w+)/
-        priority = $1
-        title = title.gsub(/\s*--priority\s+\w+/, '')
-      end
-      
-      # Look for --tags parameter
-      if title =~ /--tags\s+"([^"]+)"/
-        tags = $1
-        title = title.gsub(/\s*--tags\s+"[^"]+"/, '')
-      end
-      
-      # Look for --due_date parameter
-      if title =~ /--due_date\s+"([^"]+)"/
-        due_date = $1
-        title = title.gsub(/\s*--due_date\s+"[^"]+"/, '')
-      end
-      
-      # Clean up any extra whitespace
-      title = title.strip
-      
-      # Create the task with all parameters
-      cli_args = ["task:add", notebook_name, title]
-      cli_args.push("--description", description) if description
-      cli_args.push("--priority", priority) if priority
-      cli_args.push("--tags", tags) if tags
-      cli_args.push("--due_date", due_date) if due_date
-      
-      RubyTodo::CLI.start(cli_args)
     end
 
     def execute_task_move_command(cmd)
-      parts = cmd.split(/\s+/)
-      return unless parts.size >= 4
-
-      notebook_name = parts[1]
-      task_id = parts[2]
-      status = parts[3]
-      cli_args = ["task:move", notebook_name, task_id, status]
-      RubyTodo::CLI.start(cli_args)
+      # Match notebook name in quotes, task ID, and status
+      if cmd =~ /task:move\s+"([^"]+)"\s+(\d+)\s+(\w+)/
+        notebook_name = Regexp.last_match(1)
+        task_id = Regexp.last_match(2)
+        status = Regexp.last_match(3)
+        cli_args = ["task:move", notebook_name, task_id, status]
+        RubyTodo::CLI.start(cli_args)
+      else
+        say "Invalid task:move command format".red
+      end
     end
 
     def execute_task_list_command(cmd)
-      parts = cmd.split(/\s+/)
-      cli_args = ["task:list"] + parts[1..]
-      
-      # Get the notebook name
-      notebook_name = parts[1] if parts.size > 1
-      notebook = RubyTodo::Notebook.find_by(name: notebook_name)
-      
-      unless notebook
-        say "Notebook '#{notebook_name}' not found".red
-        return
+      # Match notebook name in quotes
+      if cmd =~ /task:list\s+"([^"]+)"(?:\s+(.*))?/
+        notebook_name = Regexp.last_match(1)
+        filters = Regexp.last_match(2)
+        cli_args = ["task:list", notebook_name]
+
+        # Add any filters that were specified
+        cli_args.concat(filters.split(/\s+/)) if filters
+
+        RubyTodo::CLI.start(cli_args)
+      else
+        say "Invalid task:list command format".red
       end
-
-      tasks = notebook.tasks
-
-      # Apply any filters from the command
-      tasks = apply_task_filters(tasks, parts[2..])
-
-      if tasks.empty?
-        say "No tasks found in notebook '#{notebook_name}'".yellow
-        return
-      end
-
-      # Prepare rows with wrapped text
-      rows = tasks.map do |t|
-        [
-          t.id,
-          wrap_text(t.title, 48),
-          format_status(t.status),
-          format_priority(t.priority),
-          format_due_date(t.due_date),
-          truncate_text(t.tags, 18),
-          wrap_text(t.description, 28)
-        ]
-      end
-
-      # Display the table with proper formatting
-      puts format_table_with_wrapping(
-        ["ID", "Title", "Status", "Priority", "Due Date", "Tags", "Description"],
-        rows
-      )
-    end
-
-    def apply_task_filters(tasks, args)
-      return tasks if args.empty?
-
-      args.each_with_index do |arg, i|
-        case arg
-        when "--status"
-          tasks = tasks.where(status: args[i + 1]) if args[i + 1]
-        when "--priority"
-          tasks = tasks.where(priority: args[i + 1]) if args[i + 1]
-        when "--tags"
-          if args[i + 1]
-            tag_filters = args[i + 1].split(",").map(&:strip)
-            tasks = tasks.select { |t| t.tags && tag_filters.any? { |tag| t.tags.include?(tag) } }
-          end
-        end
-      end
-
-      tasks
-    end
-
-    def format_status(status)
-      case status
-      when "todo" then "Todo".yellow
-      when "in_progress" then "In Progress".blue
-      when "done" then "Done".green
-      when "archived" then "Archived".gray
-      else status
-      end
-    end
-
-    def format_priority(priority)
-      return "None" unless priority
-
-      case priority
-      when "high" then priority.red
-      when "medium" then priority.yellow
-      when "low" then priority.green
-      else priority
-      end
-    end
-
-    def format_due_date(date)
-      return "No due date" unless date
-      date.strftime("%Y-%m-%d %H:%M")
     end
 
     def execute_task_delete_command(cmd)
-      parts = cmd.split(/\s+/)
-      return unless parts.size >= 3
-
-      notebook_name = parts[1]
-      task_id = parts[2]
-      cli_args = ["task:delete", notebook_name, task_id]
-      RubyTodo::CLI.start(cli_args)
+      # Match notebook name in quotes and task ID
+      if cmd =~ /task:delete\s+"([^"]+)"\s+(\d+)/
+        notebook_name = Regexp.last_match(1)
+        task_id = Regexp.last_match(2)
+        cli_args = ["task:delete", notebook_name, task_id]
+        RubyTodo::CLI.start(cli_args)
+      else
+        say "Invalid task:delete command format".red
+      end
     end
 
     def execute_notebook_create_command(cmd)
@@ -306,12 +225,12 @@ module RubyTodo
       config_dir = File.expand_path("~/.ruby_todo")
       FileUtils.mkdir_p(config_dir)
       config_file = File.join(config_dir, "ai_config.json")
-      
+
       config = if File.exist?(config_file)
-                JSON.parse(File.read(config_file))
-              else
-                {}
-              end
+                 JSON.parse(File.read(config_file))
+               else
+                 {}
+               end
 
       config[key] = value
       File.write(config_file, JSON.pretty_generate(config))
@@ -360,7 +279,7 @@ module RubyTodo
       table.render(:ascii, padding: [0, 1], width: 150, resize: true) do |renderer|
         renderer.border.separator = :each_row
         renderer.multiline = true
-        
+
         # Configure column widths
         renderer.column_widths = [
           5,  # ID

@@ -48,17 +48,6 @@ module RubyTodo
       assert_includes task.errors[:status], "is not included in the list"
     end
 
-    def test_auto_archives_completed_tasks
-      task = Task.create(
-        notebook: @notebook,
-        title: "Test Task",
-        status: "todo"
-      )
-
-      task.update(status: "done")
-      assert_equal "archived", task.reload.status
-    end
-
     def test_validates_priority
       task = Task.new(
         notebook: @notebook,

@@ -4,6 +4,9 @@ ENV["MT_NO_PLUGINS"] = "true" # Disable Rails plugins in Minitest
 require "minitest/autorun"
 require "ruby_todo"
 
+# Set test environment
+ENV["RUBY_TODO_TEST"] = "true"
+
 # Set up test environment
 RubyTodo::Database.setup
 
@@ -11,9 +14,9 @@ module Minitest
   class Test
     def setup
       super
-      # Clean up test database before each test
       RubyTodo::Task.delete_all
       RubyTodo::Notebook.delete_all
+      RubyTodo::Template.delete_all
     end
 
     def teardown
@@ -21,6 +24,7 @@ module Minitest
       # Clean up test database after each test
       RubyTodo::Task.delete_all
       RubyTodo::Notebook.delete_all
+      RubyTodo::Template.delete_all
     end
   end
 end

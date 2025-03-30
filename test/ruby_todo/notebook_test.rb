@@ -156,8 +156,8 @@ module RubyTodo
       assert_equal 3, stats[:total]
       assert_equal 1, stats[:todo]
       assert_equal 1, stats[:in_progress]
-      assert_equal 0, stats[:done] # Done tasks are auto-archived
-      assert_equal 1, stats[:archived]
+      assert_equal 1, stats[:done] # Done tasks are no longer auto-archived
+      assert_equal 0, stats[:archived]
       assert_equal 1, stats[:high_priority]
       assert_equal 1, stats[:medium_priority]
       assert_equal 1, stats[:low_priority]

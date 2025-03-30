@@ -13,7 +13,6 @@ module RubyTodo
     validate :due_date_cannot_be_in_past, if: :due_date?
     validate :tags_format, if: :tags?
 
-    before_save :archive_completed_tasks
     before_save :format_tags
 
     scope :todo, -> { where(status: "todo") }
@@ -49,12 +48,6 @@ module RubyTodo
     end
 
     private
-
-    def archive_completed_tasks
-      return unless status_changed? && status == "done"
-
-      self.status = "archived"
-    end
 
     def due_date_cannot_be_in_past
       return unless due_date.present? && due_date < Time.current && new_record?

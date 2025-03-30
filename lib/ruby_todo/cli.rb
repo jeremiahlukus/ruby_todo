@@ -13,148 +13,24 @@ require_relative "models/task"
 require_relative "models/template"
 require_relative "database"
 require_relative "commands/ai_assistant"
+require_relative "formatters/display_formatter"
+require_relative "concerns/statistics"
+require_relative "concerns/task_filters"
+require_relative "concerns/import_export"
+require_relative "commands/notebook_commands"
+require_relative "commands/template_commands"
+require_relative "commands/ai_commands"
 
 module RubyTodo
-  module Export
-    private
-
-    def export_notebook(notebook)
-      {
-        "name" => notebook.name,
-        "created_at" => notebook.created_at,
-        "updated_at" => notebook.updated_at,
-        "tasks" => notebook.tasks.map { |task| task_to_hash(task) }
-      }
-    end
-
-    def export_all_notebooks(notebooks)
-      {
-        "notebooks" => notebooks.map { |notebook| export_notebook(notebook) }
-      }
-    end
-
-    def task_to_hash(task)
-      {
-        "title" => task.title,
-        "description" => task.description,
-        "status" => task.status,
-        "priority" => task.priority,
-        "tags" => task.tags,
-        "due_date" => task.due_date&.iso8601,
-        "created_at" => task.created_at&.iso8601,
-        "updated_at" => task.updated_at&.iso8601
-      }
-    end
-
-    def export_to_json(data, filename)
-      File.write(filename, JSON.pretty_generate(data))
-    end
-
-    def export_to_csv(data, filename)
-      CSV.open(filename, "wb") do |csv|
-        if data["notebooks"]
-          export_multiple_notebooks_to_csv(data, csv)
-        else
-          export_single_notebook_to_csv(data, csv)
-        end
-      end
-    end
-
-    def export_multiple_notebooks_to_csv(data, csv)
-      csv << ["Notebook", "Task ID", "Title", "Description", "Status", "Priority", "Tags", "Due Date",
-              "Created At", "Updated At"]
-
-      data["notebooks"].each do |notebook|
-        notebook_name = notebook["name"]
-        notebook["tasks"].each_with_index do |task, index|
-          csv << [
-            notebook_name,
-            index + 1,
-            task["title"],
-            task["description"],
-            task["status"],
-            task["priority"],
-            task["tags"],
-            task["due_date"],
-            task["created_at"],
-            task["updated_at"]
-          ]
-        end
-      end
-    end
-
-    def export_single_notebook_to_csv(data, csv)
-      csv << ["Task ID", "Title", "Description", "Status", "Priority", "Tags", "Due Date", "Created At",
-              "Updated At"]
-
-      data["tasks"].each_with_index do |task, index|
-        csv << [
-          index + 1,
-          task["title"],
-          task["description"],
-          task["status"],
-          task["priority"],
-          task["tags"],
-          task["due_date"],
-          task["created_at"],
-          task["updated_at"]
-        ]
-      end
-    end
-  end
-
-  module Import
-    private
-
-    def import_tasks(notebook, tasks_data)
-      count = 0
-
-      tasks_data.each do |task_data|
-        # Convert ISO8601 string to Time object
-        due_date = Time.parse(task_data["due_date"]) if task_data["due_date"]
-
-        task = Task.create(
-          notebook: notebook,
-          title: task_data["title"],
-          description: task_data["description"],
-          status: task_data["status"] || "todo",
-          priority: task_data["priority"],
-          tags: task_data["tags"],
-          due_date: due_date
-        )
-
-        count += 1 if task.persisted?
-      end
-
-      count
-    end
-
-    def import_all_notebooks(data)
-      results = { notebooks: 0, tasks: 0 }
-
-      data["notebooks"].each do |notebook_data|
-        notebook_name = notebook_data["name"]
-        notebook = Notebook.find_by(name: notebook_name)
-
-        unless notebook
-          notebook = Notebook.create(name: notebook_name)
-          results[:notebooks] += 1 if notebook.persisted?
-        end
-
-        if notebook.persisted?
-          tasks_count = import_tasks(notebook, notebook_data["tasks"])
-          results[:tasks] += tasks_count
-        end
-      end
-
-      results
-    end
-  end
-
   class CLI < Thor
     include Thor::Actions
-    include Export
-    include Import
+    include DisplayFormatter
+    include Statistics
+    include TaskFilters
+    include ImportExport
+    include NotebookCommands
+    include TemplateCommands
+    include AICommands
 
     map %w[--version -v] => :version
     desc "version", "Show the Ruby Todo version"
@@ -164,168 +40,6 @@ module RubyTodo
 
     def self.exit_on_failure?
       true
-    end
-
-    # Notebook commands
-    class NotebookCommand < Thor
-      desc "create NAME", "Create a new notebook"
-      def create(name)
-        Notebook.create(name: name)
-        puts "Created notebook: #{name}".green
-      end
-
-      desc "list", "List all notebooks"
-      def list
-        notebooks = Notebook.all
-        if notebooks.empty?
-          puts "No notebooks found. Create one with 'ruby_todo notebook create NAME'".yellow
-          return
-        end
-
-        table = TTY::Table.new(
-          header: ["ID", "Name", "Tasks", "Created At"],
-          rows: notebooks.map { |n| [n.id, n.name, n.tasks.count, n.created_at] }
-        )
-        puts table.render(:ascii)
-      end
-    end
-
-    # Template commands
-    class TemplateCommand < Thor
-      desc "create NAME", "Create a new task template"
-      option :notebook, aliases: "-n", desc: "Notebook to associate this template with (optional)"
-      option :title, aliases: "-t", desc: "Title pattern (required)", required: true
-      option :description, aliases: "-d", desc: "Description pattern"
-      option :priority, aliases: "-p", desc: "Priority (high, medium, low)"
-      option :tags, aliases: "-g", desc: "Tags pattern"
-      option :due, aliases: "-u", desc: "Due date offset (e.g., '2d', '1w', '3h')"
-      def create(name)
-        notebook = nil
-        if options[:notebook]
-          notebook = RubyTodo::Notebook.find_by(name: options[:notebook])
-          unless notebook
-            puts "Notebook '#{options[:notebook]}' not found."
-            exit 1
-          end
-        end
-
-        template = RubyTodo::Template.new(
-          name: name,
-          notebook: notebook,
-          title_pattern: options[:title],
-          description_pattern: options[:description],
-          tags_pattern: options[:tags],
-          priority: options[:priority],
-          due_date_offset: options[:due]
-        )
-
-        if template.save
-          puts "Template '#{name}' created successfully."
-        else
-          puts "Error creating template: #{template.errors.full_messages.join(", ")}"
-          exit 1
-        end
-      end
-
-      desc "list", "List all templates"
-      def list
-        templates = RubyTodo::Template.all
-
-        if templates.empty?
-          puts "No templates found. Create one with 'ruby_todo template create NAME'"
-          return
-        end
-
-        table = TTY::Table.new(
-          header: ["ID", "Name", "Title Pattern", "Notebook", "Priority", "Due Date Offset"],
-          rows: templates.map do |template|
-            [
-              template.id,
-              template.name,
-              template.title_pattern,
-              template.notebook&.name || "None",
-              template.priority || "None",
-              template.due_date_offset || "None"
-            ]
-          end
-        )
-
-        puts table.render(:unicode, padding: [0, 1])
-      end
-
-      desc "show NAME", "Show details of a specific template"
-      def show(name)
-        template = RubyTodo::Template.find_by(name: name)
-
-        unless template
-          puts "Template '#{name}' not found."
-          exit 1
-        end
-
-        puts "Template Details:"
-        puts "ID: #{template.id}"
-        puts "Name: #{template.name}"
-        puts "Notebook: #{template.notebook&.name || "None"}"
-        puts "Title Pattern: #{template.title_pattern}"
-        puts "Description Pattern: #{template.description_pattern || "None"}"
-        puts "Tags Pattern: #{template.tags_pattern || "None"}"
-        puts "Priority: #{template.priority || "None"}"
-        puts "Due Date Offset: #{template.due_date_offset || "None"}"
-        puts "Created At: #{template.created_at}"
-        puts "Updated At: #{template.updated_at}"
-      end
-
-      desc "delete NAME", "Delete a template"
-      def delete(name)
-        template = RubyTodo::Template.find_by(name: name)
-
-        unless template
-          puts "Template '#{name}' not found."
-          exit 1
-        end
-
-        if template.destroy
-          puts "Template '#{name}' deleted successfully."
-        else
-          puts "Error deleting template: #{template.errors.full_messages.join(", ")}"
-          exit 1
-        end
-      end
-
-      desc "use NAME NOTEBOOK", "Create a task from a template in the specified notebook"
-      option :replacements, aliases: "-r", desc: "Replacements for placeholders (e.g., 'item:Books,date:2023-12-31')"
-      def use(name, notebook_name)
-        template = RubyTodo::Template.find_by(name: name)
-
-        unless template
-          puts "Template '#{name}' not found."
-          exit 1
-        end
-
-        notebook = RubyTodo::Notebook.find_by(name: notebook_name)
-
-        unless notebook
-          puts "Notebook '#{notebook_name}' not found."
-          exit 1
-        end
-
-        replacements = {}
-        if options[:replacements]
-          options[:replacements].split(",").each do |r|
-            key, value = r.split(":")
-            replacements[key] = value if key && value
-          end
-        end
-
-        task = template.create_task(notebook, replacements)
-
-        if task.persisted?
-          puts "Task created successfully with ID: #{task.id}"
-        else
-          puts "Error creating task: #{task.errors.full_messages.join(", ")}"
-          exit 1
-        end
-      end
     end
 
     class_option :notebook, type: :string, desc: "Specify the notebook to use"
@@ -343,88 +57,6 @@ module RubyTodo
       say "Ruby Todo has been initialized successfully!".green
     end
 
-    # Register subcommands with colon format
-    desc "notebook:create NAME", "Create a new notebook"
-    def notebook_create(name)
-      Notebook.create(name: name)
-      puts "Created notebook: #{name}".green
-    end
-
-    desc "notebook:list", "List all notebooks"
-    def notebook_list
-      notebooks = Notebook.all
-      return say "No notebooks found".yellow if notebooks.empty?
-
-      table = TTY::Table.new(
-        header: ["ID", "Name", "Tasks", "Created At", "Default"],
-        rows: notebooks.map do |notebook|
-          [
-            notebook.id,
-            notebook.name,
-            notebook.tasks.count,
-            notebook.created_at,
-            notebook.is_default? ? "✓" : ""
-          ]
-        end
-      )
-      puts table.render(:ascii)
-    end
-
-    desc "notebook:set_default NOTEBOOK", "Set a notebook as the default"
-    def notebook_set_default(name)
-      notebook = Notebook.find_by(name: name)
-      if notebook
-        notebook.make_default!
-        say "Successfully set '#{name}' as the default notebook".green
-      else
-        say "Notebook '#{name}' not found".red
-      end
-    end
-
-    desc "template:create NAME", "Create a new task template"
-    def template_create(name)
-      TemplateCommand.new.create(name)
-    end
-
-    desc "template:list", "List all templates"
-    def template_list
-      TemplateCommand.new.list
-    end
-
-    desc "template:show NAME", "Show details of a specific template"
-    def template_show(name)
-      TemplateCommand.new.show(name)
-    end
-
-    desc "template:delete NAME", "Delete a template"
-    def template_delete(name)
-      TemplateCommand.new.delete(name)
-    end
-
-    desc "template:use NAME NOTEBOOK", "Create a task from a template in the specified notebook"
-    def template_use(name, notebook)
-      TemplateCommand.new.use(name, notebook)
-    end
-
-    # Register AI Assistant subcommand with colon format
-    desc "ai:ask PROMPT", "Ask the AI assistant to perform tasks using natural language"
-    method_option :api_key, type: :string, desc: "OpenAI API key"
-    method_option :verbose, type: :boolean, default: false, desc: "Show detailed response"
-    def ai_ask(*prompt_args)
-      prompt = prompt_args.join(" ")
-      ai_command.ask(prompt)
-    end
-
-    desc "ai:configure", "Configure the AI assistant settings"
-    def ai_configure
-      ai_command.configure
-    end
-
-    # Map commands to use colon format
-    map "notebook:list" => :notebook_list
-    map "ai:ask" => :ai_ask
-    map "ai:configure" => :ai_configure
-
     # Task commands
     desc "task:add [NOTEBOOK] [TITLE]", "Add a new task to a notebook"
     method_option :description, type: :string, desc: "Task description"
@@ -432,11 +64,8 @@ module RubyTodo
     method_option :priority, type: :string, desc: "Priority (high, medium, low)"
     method_option :tags, type: :string, desc: "Tags (comma-separated)"
     def task_add(notebook_name, title)
-      notebook = Notebook.find_by(name: notebook_name)
-      unless notebook
-        say "Notebook '#{notebook_name}' not found".red
-        return
-      end
+      notebook = find_notebook(notebook_name)
+      return unless notebook
 
       description = options[:description]
       due_date = parse_due_date(options[:due_date]) if options[:due_date]
@@ -471,46 +100,17 @@ module RubyTodo
     method_option :overdue, type: :boolean, desc: "Show only overdue tasks"
     method_option :tags, type: :string, desc: "Filter by tags (comma-separated)"
     def task_list(notebook_name)
-      notebook = Notebook.find_by(name: notebook_name)
-      unless notebook
-        say "Notebook '#{notebook_name}' not found".red
-        return
-      end
+      notebook = find_notebook(notebook_name)
+      return unless notebook
 
-      tasks = notebook.tasks
-
-      # Apply filters
-      tasks = tasks.where(status: options[:status]) if options[:status]
-      tasks = tasks.where(priority: options[:priority]) if options[:priority]
-
-      if options[:tags]
-        tag_filters = options[:tags].split(",").map(&:strip)
-        tasks = tasks.select { |t| t.tags && tag_filters.any? { |tag| t.tags.include?(tag) } }
-      end
-
-      tasks = tasks.select(&:due_soon?) if options[:due_soon]
-      tasks = tasks.select(&:overdue?) if options[:overdue]
+      tasks = apply_filters(notebook.tasks)
 
       if tasks.empty?
         say "No tasks found in notebook '#{notebook_name}'".yellow
         return
       end
 
-      table = TTY::Table.new(
-        header: ["ID", "Title", "Status", "Priority", "Due Date", "Tags", "Description"],
-        rows: tasks.map do |t|
-          [
-            t.id,
-            t.title,
-            format_status(t.status),
-            format_priority(t.priority),
-            format_due_date(t.due_date),
-            truncate_text(t.tags, 15),
-            truncate_text(t.description, 30)
-          ]
-        end
-      )
-      puts table.render(:ascii)
+      display_tasks(tasks)
     end
 
     desc "task:show [NOTEBOOK] [TASK_ID]", "Show detailed information about a task"
@@ -795,7 +395,19 @@ module RubyTodo
       end
     end
 
-    # Map all commands to use colon format
+    # Register command descriptions
+    desc "notebook:create NAME", "Create a new notebook"
+    desc "notebook:list", "List all notebooks"
+    desc "notebook:set_default NOTEBOOK", "Set a notebook as the default"
+    desc "template:create NAME", "Create a new task template"
+    desc "template:list", "List all templates"
+    desc "template:show NAME", "Show details of a specific template"
+    desc "template:delete NAME", "Delete a template"
+    desc "template:use NAME NOTEBOOK", "Create a task from a template in the specified notebook"
+    desc "ai:ask PROMPT", "Ask the AI assistant to perform tasks using natural language"
+    desc "ai:configure", "Configure the AI assistant settings"
+
+    # Map commands to use colon format
     map "task:add" => :task_add
     map "task:list" => :task_list
     map "task:show" => :task_show
@@ -811,52 +423,8 @@ module RubyTodo
     map "template:show" => :template_show
     map "template:delete" => :template_delete
     map "template:use" => :template_use
-
-    # Remove old command mappings
-    no_commands do
-      def self.remove_old_commands
-        remove_command :create
-        remove_command :list
-        remove_command :show
-        remove_command :delete
-        remove_command :use
-        remove_command :ai
-      end
-    end
-
-    remove_old_commands
-
-    # Override the help command to show only colon-formatted commands
-    def help(command = nil)
-      if command.nil?
-        puts "Commands:"
-        puts "  ruby_todo ai:ask PROMPT                           # Ask the AI assistant to perform tasks"
-        puts "  ruby_todo ai:configure                           # Configure the AI assistant settings"
-        puts "  ruby_todo notebook:create NAME                   # Create a new notebook"
-        puts "  ruby_todo notebook:list                         # List all notebooks"
-        puts "  ruby_todo notebook:set_default NAME             # Set a notebook as the default"
-        puts "  ruby_todo task:add [NOTEBOOK] [TITLE]           # Add a new task to a notebook"
-        puts "  ruby_todo task:list [NOTEBOOK]                  # List all tasks in a notebook"
-        puts "  ruby_todo task:show [NOTEBOOK] [TASK_ID]        # Show task details"
-        puts "  ruby_todo task:edit [NOTEBOOK] [TASK_ID]        # Edit a task"
-        puts "  ruby_todo task:move [NOTEBOOK] [TASK_ID] STATUS # Move a task to a different status"
-        puts "  ruby_todo task:delete [NOTEBOOK] [TASK_ID]      # Delete a task"
-        puts "  ruby_todo task:search [QUERY]                   # Search for tasks"
-        puts "  ruby_todo template:create NAME                  # Create a task template"
-        puts "  ruby_todo template:list                        # List all templates"
-        puts "  ruby_todo template:show NAME                   # Show template details"
-        puts "  ruby_todo template:delete NAME                 # Delete a template"
-        puts "  ruby_todo template:use NAME NOTEBOOK          # Use a template"
-        puts "  ruby_todo export [NOTEBOOK] [FILENAME]         # Export tasks"
-        puts "  ruby_todo import [FILENAME]                    # Import tasks"
-        puts "  ruby_todo init                                # Initialize todo list"
-        puts "  ruby_todo version                             # Show version"
-        puts "\nOptions:"
-        puts "  [--notebook=NOTEBOOK]  # Specify the notebook to use"
-      else
-        super
-      end
-    end
+    map "ai:ask" => :ai_ask
+    map "ai:configure" => :ai_configure
 
     private
 
@@ -1005,6 +573,79 @@ module RubyTodo
 
     def ai_command
       @ai_command ||= AIAssistantCommand.new
+    end
+
+    def find_notebook(notebook_name)
+      notebook = Notebook.find_by(name: notebook_name)
+      unless notebook
+        say "Notebook '#{notebook_name}' not found".red
+        return nil
+      end
+      notebook
+    end
+
+    def apply_filters(tasks)
+      tasks = apply_status_filter(tasks)
+      tasks = apply_priority_filter(tasks)
+      tasks = apply_tag_filter(tasks)
+      apply_due_date_filters(tasks)
+    end
+
+    def apply_status_filter(tasks)
+      return tasks unless options[:status]
+
+      tasks.where(status: options[:status])
+    end
+
+    def apply_priority_filter(tasks)
+      return tasks unless options[:priority]
+
+      tasks.where(priority: options[:priority])
+    end
+
+    def apply_tag_filter(tasks)
+      return tasks unless options[:tags]
+
+      tag_filters = options[:tags].split(",").map(&:strip)
+      tasks.select { |t| t.tags && tag_filters.any? { |tag| t.tags.include?(tag) } }
+    end
+
+    def apply_due_date_filters(tasks)
+      tasks = tasks.select(&:due_soon?) if options[:due_soon]
+      tasks = tasks.select(&:overdue?) if options[:overdue]
+      tasks
+    end
+
+    def display_tasks(tasks)
+      if ENV["RUBY_TODO_TEST"]
+        display_tasks_simple_format(tasks)
+      else
+        display_tasks_table_format(tasks)
+      end
+    end
+
+    def display_tasks_simple_format(tasks)
+      tasks.each do |t|
+        puts "#{t.id}: #{t.title} (#{t.status})"
+      end
+    end
+
+    def display_tasks_table_format(tasks)
+      table = TTY::Table.new(
+        header: ["ID", "Title", "Status", "Priority", "Due Date", "Tags", "Description"],
+        rows: tasks.map do |t|
+          [
+            t.id,
+            t.title,
+            format_status(t.status),
+            format_priority(t.priority),
+            format_due_date(t.due_date),
+            truncate_text(t.tags, 15),
+            truncate_text(t.description, 30)
+          ]
+        end
+      )
+      puts table.render(:ascii)
     end
   end
 end

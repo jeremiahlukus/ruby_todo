@@ -213,13 +213,13 @@ module RubyTodo
     def query_openai(prompt, context, api_key)
       client = OpenAI::Client.new(access_token: api_key)
       messages = build_messages(prompt, context)
-      
+
       response = client.chat(parameters: {
-        model: "gpt-4o-mini",
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: 1000
-      })
+                               model: "gpt-4o-mini",
+                               messages: messages,
+                               temperature: 0.7,
+                               max_tokens: 1000
+                             })
 
       handle_openai_response(response)
     end

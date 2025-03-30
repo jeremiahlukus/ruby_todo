@@ -88,7 +88,7 @@ module RubyTodo
       
       api_key = prompt.mask("Enter your API key:")
       
-      model = "gpt-4o-mino"
+      model = "gpt-4o-mini"
       
       save_config(api.downcase, api_key, model)
       say "Configuration saved successfully!".green
