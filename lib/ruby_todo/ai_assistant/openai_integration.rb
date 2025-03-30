@@ -105,8 +105,8 @@ module RubyTodo
         { role: "user", content: prompt }
       ]
 
-      say "\nSystem prompt:\n#{messages.first[:content]}\n" if options[:verbose]
-      say "\nUser prompt:\n#{prompt}\n" if options[:verbose]
+      say "\nSystem prompt:\n#{messages.first[:content]}\n" if @options && @options[:verbose]
+      say "\nUser prompt:\n#{prompt}\n" if @options && @options[:verbose]
 
       messages
     end
