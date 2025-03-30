@@ -157,153 +157,10 @@ module RubyTodo
       # Create a CLI instance for executing commands
       cli = RubyTodo::CLI.new
 
-      # Special case for "add task to notebook with attributes"
-      if prompt.match?(add_task_title_regex)
-        task_title_match = prompt.match(add_task_title_regex)
-        title = task_title_match[1]
-        notebook_name = task_title_match[2]
+      # Try to handle common command patterns directly
+      return if handle_common_patterns(prompt, cli)
 
-        options = {}
-        # Check for priority
-        case prompt
-        when /priority\s+high/i
-          options[:priority] = "high"
-        when /priority\s+medium/i
-          options[:priority] = "medium"
-        when /priority\s+low/i
-          options[:priority] = "low"
-        end
-
-        # Check for tags
-        if (tags_match = prompt.match(/tags?\s+(\w+)/i))
-          options[:tags] = tags_match[1]
-        end
-
-        # Check for description
-        if (desc_match = prompt.match(/description\s+["']([^"']+)["']/i))
-          options[:description] = desc_match[1]
-        end
-
-        # Create the task using the extracted info
-        args = ["task:add", notebook_name, title]
-        options.each do |key, value|
-          args << "--#{key}" << value
-        end
-        RubyTodo::CLI.start(args)
-        return
-      end
-
-      # Check for various export task patterns
-      case
-      when prompt.match?(export_tasks_regex) ||
-        prompt.match?(export_done_tasks_regex) ||
-        prompt.match?(export_all_done_tasks_regex) ||
-        prompt.match?(export_tasks_with_done_status_regex) ||
-        prompt.match?(export_tasks_to_csv_regex) ||
-        prompt.match?(export_tasks_to_json_regex) ||
-        prompt.match?(export_tasks_to_file_regex) ||
-        prompt.match?(save_done_tasks_to_file_regex)
-        handle_export_recent_done_tasks(prompt)
-        return
-      # Check for notebook creation requests
-      when prompt.match?(notebook_create_regex)
-        match = prompt.match(notebook_create_regex)
-        notebook_name = match[1]
-        cli.notebook_create(notebook_name)
-        return
-      # Check for notebook listing requests
-      when prompt.match?(/list.*notebooks/i) ||
-        prompt.match?(/show.*notebooks/i) ||
-        prompt.match?(/get.*notebooks/i) ||
-        prompt.match?(/display.*notebooks/i)
-        cli.notebook_list
-        return
-      # Check for task creation with additional attributes
-      when prompt.match?(task_create_regex)
-        match = prompt.match(task_create_regex)
-        title = match[1]
-        notebook_name = match[2].sub(/\s+notebook$/i, "")
-
-        # Get the rest of the prompt to extract attributes
-        attributes_part = prompt.split(/\s+(?:with|having|and|that has)\s+/).last
-
-        options = {}
-
-        # Parse additional attributes
-        if attributes_part
-          # Check for priority
-          if (priority_match = attributes_part.match(/(?:priority|importance)\s+(high|medium|low)/i))
-            options[:priority] = priority_match[1].downcase
-          end
-
-          # Check for tags
-          tags_regex = /tags?\s+["']?([^"',]+)["']?/i
-          alt_tags_regex = /tags?\s+([^\s,]+)/i
-          if (tags_match = attributes_part.match(tags_regex) ||
-              attributes_part.match(alt_tags_regex))
-            options[:tags] = tags_match[1]
-          end
-
-          # Check for due date
-          if (due_date_match = attributes_part.match(/due(?:\s+date)?\s+["']?([^"']+)["']?/i))
-            options[:due_date] = due_date_match[1]
-          end
-
-          # Check for description
-          if (desc_match = attributes_part.match(/description\s+["']([^"']+)["']/i))
-            options[:description] = desc_match[1]
-          end
-        end
-
-        # Call task:add with the extracted attributes
-        args = ["task:add", notebook_name, title]
-        options.each do |key, value|
-          args << "--#{key}" << value
-        end
-
-        RubyTodo::CLI.start(args)
-        return
-      # Check for task listing requests for a specific notebook
-      when prompt.match?(task_list_regex)
-        match = prompt.match(task_list_regex)
-        notebook_name = match[1].sub(/\s+notebook$/i, "")
-        cli.task_list(notebook_name)
-        return
-      # Check for general task listing without a notebook specified
-      when prompt.match?(/(?:list|show|get|display).*(?:all)?\s*tasks/i)
-        # Get the default notebook or first available
-        notebooks = RubyTodo::Notebook.all
-        if notebooks.any?
-          default_notebook = notebooks.first
-          cli.task_list(default_notebook.name)
-        else
-          say "No notebooks found. Create a notebook first.".yellow
-        end
-        return
-      # Check for task movement requests (changing status)
-      when prompt.match?(task_move_regex)
-        match = prompt.match(task_move_regex)
-        task_id = match[1]
-        notebook_name = match[2].sub(/\s+notebook$/i, "")
-        status = match[3].downcase
-        cli.task_move(notebook_name, task_id, status)
-        return
-      # Check for task deletion requests
-      when prompt.match?(task_delete_regex)
-        match = prompt.match(task_delete_regex)
-        task_id = match[1]
-        notebook_name = match[2].sub(/\s+notebook$/i, "")
-        cli.task_delete(notebook_name, task_id)
-        return
-      # Check for task details view requests
-      when prompt.match?(task_show_regex)
-        match = prompt.match(task_show_regex)
-        task_id = match[1]
-        notebook_name = match[2].sub(/\s+notebook$/i, "")
-        cli.task_show(notebook_name, task_id)
-        return
-      end
-
+      # If no direct pattern match, use AI assistance
       context = build_context
       say "\nInitial context built" if @options[:verbose]
 
@@ -314,6 +171,218 @@ module RubyTodo
 
       # Execute actions based on response
       execute_actions(response)
+    end
+
+    def handle_common_patterns(prompt, cli)
+      # Special case for "add task to notebook with attributes"
+      if prompt.match?(add_task_title_regex)
+        handle_add_task_pattern(prompt, cli)
+        return true
+      end
+
+      # Check for various export task patterns
+      if handle_export_task_patterns(prompt)
+        return true
+      end
+
+      # Check for notebook operations
+      if handle_notebook_operations(prompt, cli)
+        return true
+      end
+
+      # Check for task operations
+      if handle_task_operations(prompt, cli)
+        return true
+      end
+
+      false
+    end
+
+    def handle_add_task_pattern(prompt, _cli)
+      task_title_match = prompt.match(add_task_title_regex)
+      title = task_title_match[1]
+      notebook_name = task_title_match[2]
+
+      options = extract_task_options(prompt)
+
+      # Create the task using the extracted info
+      args = ["task:add", notebook_name, title]
+      options.each do |key, value|
+        args << "--#{key}" << value
+      end
+      RubyTodo::CLI.start(args)
+    end
+
+    def extract_task_options(prompt)
+      options = {}
+      # Check for priority
+      case prompt
+      when /priority\s+high/i
+        options[:priority] = "high"
+      when /priority\s+medium/i
+        options[:priority] = "medium"
+      when /priority\s+low/i
+        options[:priority] = "low"
+      end
+
+      # Check for tags
+      if (tags_match = prompt.match(/tags?\s+(\w+)/i))
+        options[:tags] = tags_match[1]
+      end
+
+      # Check for description
+      if (desc_match = prompt.match(/description\s+["']([^"']+)["']/i))
+        options[:description] = desc_match[1]
+      end
+
+      options
+    end
+
+    def handle_export_task_patterns(prompt)
+      case
+      when prompt.match?(export_tasks_regex) ||
+        prompt.match?(export_done_tasks_regex) ||
+        prompt.match?(export_all_done_tasks_regex) ||
+        prompt.match?(export_tasks_with_done_status_regex) ||
+        prompt.match?(export_tasks_to_csv_regex) ||
+        prompt.match?(export_tasks_to_json_regex) ||
+        prompt.match?(export_tasks_to_file_regex) ||
+        prompt.match?(save_done_tasks_to_file_regex)
+        handle_export_recent_done_tasks(prompt)
+        return true
+      end
+      false
+    end
+
+    def handle_notebook_operations(prompt, cli)
+      # Check for notebook creation requests
+      if prompt.match?(notebook_create_regex)
+        match = prompt.match(notebook_create_regex)
+        notebook_name = match[1]
+        cli.notebook_create(notebook_name)
+        return true
+      # Check for notebook listing requests
+      elsif prompt.match?(/list.*notebooks/i) ||
+            prompt.match?(/show.*notebooks/i) ||
+            prompt.match?(/get.*notebooks/i) ||
+            prompt.match?(/display.*notebooks/i)
+        cli.notebook_list
+        return true
+      end
+      false
+    end
+
+    def handle_task_operations(prompt, cli)
+      # Check for task creation with additional attributes
+      if prompt.match?(task_create_regex)
+        handle_task_create(prompt, cli)
+        return true
+      # Check for task listing requests for a specific notebook
+      elsif prompt.match?(task_list_regex)
+        handle_task_list(prompt, cli)
+        return true
+      # Check for general task listing without a notebook specified
+      elsif prompt.match?(/(?:list|show|get|display).*(?:all)?\s*tasks/i)
+        handle_general_task_list(cli)
+        return true
+      # Check for task movement requests (changing status)
+      elsif prompt.match?(task_move_regex)
+        handle_task_move(prompt, cli)
+        return true
+      # Check for task deletion requests
+      elsif prompt.match?(task_delete_regex)
+        handle_task_delete(prompt, cli)
+        return true
+      # Check for task details view requests
+      elsif prompt.match?(task_show_regex)
+        handle_task_show(prompt, cli)
+        return true
+      end
+      false
+    end
+
+    def handle_task_create(prompt, _cli)
+      match = prompt.match(task_create_regex)
+      title = match[1]
+      notebook_name = match[2].sub(/\s+notebook$/i, "")
+
+      # Get the rest of the prompt to extract attributes
+      attributes_part = prompt.split(/\s+(?:with|having|and|that has)\s+/).last
+
+      options = {}
+
+      # Parse additional attributes
+      if attributes_part
+        # Check for priority
+        if (priority_match = attributes_part.match(/(?:priority|importance)\s+(high|medium|low)/i))
+          options[:priority] = priority_match[1].downcase
+        end
+
+        # Check for tags
+        tags_regex = /tags?\s+["']?([^"',]+)["']?/i
+        alt_tags_regex = /tags?\s+([^\s,]+)/i
+        if (tags_match = attributes_part.match(tags_regex) ||
+            attributes_part.match(alt_tags_regex))
+          options[:tags] = tags_match[1]
+        end
+
+        # Check for due date
+        if (due_date_match = attributes_part.match(/due(?:\s+date)?\s+["']?([^"']+)["']?/i))
+          options[:due_date] = due_date_match[1]
+        end
+
+        # Check for description
+        if (desc_match = attributes_part.match(/description\s+["']([^"']+)["']/i))
+          options[:description] = desc_match[1]
+        end
+      end
+
+      # Call task:add with the extracted attributes
+      args = ["task:add", notebook_name, title]
+      options.each do |key, value|
+        args << "--#{key}" << value
+      end
+
+      RubyTodo::CLI.start(args)
+    end
+
+    def handle_task_list(prompt, cli)
+      match = prompt.match(task_list_regex)
+      notebook_name = match[1].sub(/\s+notebook$/i, "")
+      cli.task_list(notebook_name)
+    end
+
+    def handle_general_task_list(cli)
+      # Get the default notebook or first available
+      notebooks = RubyTodo::Notebook.all
+      if notebooks.any?
+        default_notebook = notebooks.first
+        cli.task_list(default_notebook.name)
+      else
+        say "No notebooks found. Create a notebook first.".yellow
+      end
+    end
+
+    def handle_task_move(prompt, cli)
+      match = prompt.match(task_move_regex)
+      task_id = match[1]
+      notebook_name = match[2].sub(/\s+notebook$/i, "")
+      status = match[3].downcase
+      cli.task_move(notebook_name, task_id, status)
+    end
+
+    def handle_task_delete(prompt, cli)
+      match = prompt.match(task_delete_regex)
+      task_id = match[1]
+      notebook_name = match[2].sub(/\s+notebook$/i, "")
+      cli.task_delete(notebook_name, task_id)
+    end
+
+    def handle_task_show(prompt, cli)
+      match = prompt.match(task_show_regex)
+      task_id = match[1]
+      notebook_name = match[2].sub(/\s+notebook$/i, "")
+      cli.task_show(notebook_name, task_id)
     end
 
     def execute_actions(response)
@@ -555,6 +624,32 @@ module RubyTodo
     end
 
     def handle_export_recent_done_tasks(prompt)
+      # Extract export parameters from prompt
+      export_params = extract_export_parameters(prompt)
+
+      say "Exporting tasks marked as 'done' from the last #{export_params[:weeks]} weeks..."
+
+      # Collect and filter tasks
+      exported_data = collect_done_tasks(export_params[:weeks_ago])
+
+      if exported_data["notebooks"].empty?
+        say "No 'done' tasks found from the last #{export_params[:weeks]} weeks."
+        return
+      end
+
+      # Count tasks
+      total_tasks = exported_data["notebooks"].sum { |nb| nb["tasks"].size }
+
+      # Export data to file
+      export_data_to_file(exported_data, export_params[:filename], export_params[:format])
+
+      # Format the success message
+      success_msg = "Successfully exported #{total_tasks} 'done' tasks from the last " \
+                    "#{export_params[:weeks]} weeks to #{export_params[:filename]}."
+      say success_msg
+    end
+
+    def extract_export_parameters(prompt)
       # Parse the number of weeks from the prompt
       weeks_regex = /last\s+(\d+)\s+weeks?/i
       weeks = prompt.match(weeks_regex) ? ::Regexp.last_match(1).to_i : 2 # Default to 2 weeks
@@ -563,10 +658,7 @@ module RubyTodo
       format = prompt.match?(/csv/i) ? "csv" : "json"
 
       # Check if a custom filename is specified
-      custom_filename = nil
-      if prompt.match(/to\s+(?:file\s+|filename\s+)?["']?([^"']+)["']?/i)
-        custom_filename = ::Regexp.last_match(1).strip
-      end
+      custom_filename = extract_custom_filename(prompt, format)
 
       # Get current time
       current_time = Time.now
@@ -574,19 +666,31 @@ module RubyTodo
       # Calculate the time from X weeks ago
       weeks_ago = current_time - (weeks * 7 * 24 * 60 * 60)
 
-      # Format filename with date and format
-      if custom_filename
+      {
+        weeks: weeks,
+        format: format,
+        filename: custom_filename || default_export_filename(current_time, format),
+        weeks_ago: weeks_ago
+      }
+    end
+
+    def extract_custom_filename(prompt, format)
+      if prompt.match(/to\s+(?:file\s+|filename\s+)?["']?([^"']+)["']?/i)
+        filename = ::Regexp.last_match(1).strip
         # Ensure the filename has the correct extension
-        unless custom_filename.end_with?(".#{format}")
-          custom_filename = "#{custom_filename}.#{format}"
+        unless filename.end_with?(".#{format}")
+          filename = "#{filename}.#{format}"
         end
-        filename = custom_filename
-      else
-        filename = "done_tasks_export_#{current_time.strftime("%Y%m%d")}.#{format}"
+        return filename
       end
+      nil
+    end
 
-      say "Exporting tasks marked as 'done' from the last #{weeks} weeks..."
+    def default_export_filename(current_time, format)
+      "done_tasks_export_#{current_time.strftime("%Y%m%d")}.#{format}"
+    end
 
+    def collect_done_tasks(weeks_ago)
       # Collect all notebooks
       notebooks = RubyTodo::Notebook.all
 
@@ -611,52 +715,57 @@ module RubyTodo
       # Filter out notebooks with no matching tasks
       exported_data["notebooks"].select! { |nb| nb["tasks"].any? }
 
-      if exported_data["notebooks"].empty?
-        say "No 'done' tasks found from the last #{weeks} weeks."
-        return
-      end
+      exported_data
+    end
 
-      # Count tasks
-      total_tasks = exported_data["notebooks"].sum { |nb| nb["tasks"].size }
-
-      # Export based on format
+    def export_data_to_file(exported_data, filename, format)
       case format
       when "json"
-        File.write(filename, JSON.pretty_generate(exported_data))
+        export_to_json(exported_data, filename)
       when "csv"
-        require "csv"
-        CSV.open(filename, "wb") do |csv|
-          # Add headers - Note: "Completed At" is the date when the task was moved to the "done" status
-          csv << ["Notebook", "ID", "Title", "Description", "Tags", "Priority", "Created At", "Completed At"]
+        export_to_csv(exported_data, filename)
+      end
+    end
 
-          # Add data rows
-          exported_data["notebooks"].each do |notebook|
-            notebook["tasks"].each do |task|
-              # Handle tags that might be arrays or comma-separated strings
-              tag_value = if task["tags"].nil?
-                            ""
-                          elsif task["tags"].is_a?(Array)
-                            task["tags"].join(",")
-                          else
-                            task["tags"].to_s
-                          end
+    def export_to_json(exported_data, filename)
+      File.write(filename, JSON.pretty_generate(exported_data))
+    end
 
-              csv << [
-                notebook["name"],
-                task["id"] || "N/A",
-                task["title"],
-                task["description"] || "",
-                tag_value,
-                task["priority"] || "normal",
-                task["created_at"],
-                task["updated_at"]
-              ]
-            end
+    def export_to_csv(exported_data, filename)
+      require "csv"
+      CSV.open(filename, "wb") do |csv|
+        # Add headers - Note: "Completed At" is the date when the task was moved to the "done" status
+        csv << ["Notebook", "ID", "Title", "Description", "Tags", "Priority", "Created At", "Completed At"]
+
+        # Add data rows
+        exported_data["notebooks"].each do |notebook|
+          notebook["tasks"].each do |task|
+            # Handle tags that might be arrays or comma-separated strings
+            tag_value = format_tags_for_csv(task["tags"])
+
+            csv << [
+              notebook["name"],
+              task["id"] || "N/A",
+              task["title"],
+              task["description"] || "",
+              tag_value,
+              task["priority"] || "normal",
+              task["created_at"],
+              task["updated_at"]
+            ]
           end
         end
       end
+    end
 
-      say "Successfully exported #{total_tasks} 'done' tasks from the last #{weeks} weeks to #{filename}."
+    def format_tags_for_csv(tags)
+      if tags.nil?
+        ""
+      elsif tags.is_a?(Array)
+        tags.join(",")
+      else
+        tags.to_s
+      end
     end
 
     def task_to_hash(task)

@@ -311,7 +311,10 @@ module RubyTodo
 
     def test_ai_complex_task_creation_with_natural_language
       @output.truncate(0)
-      @ai_assistant.ask("I need to create a new task called 'Call the client about project requirements' in my test_notebook. It should be high priority and due tomorrow with a tag 'client'.")
+      @ai_assistant.ask(
+        "I need to create a new task called 'Call the client about project requirements' " \
+        "in my test_notebook. It should be high priority and due tomorrow with a tag 'client'."
+      )
       output = @output.string
       refute_empty output, "Expected non-empty response from AI"
 
