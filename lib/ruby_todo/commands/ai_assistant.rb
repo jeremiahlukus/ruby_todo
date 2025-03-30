@@ -40,6 +40,116 @@ module RubyTodo
 
     private
 
+    def add_task_title_regex
+      /
+        add\s+(?:a\s+)?task\s+
+        (?:titled|called|named)\s+
+        ["']([^"']+)["']\s+
+        (?:to|in)\s+(\w+)
+      /xi
+    end
+
+    def notebook_create_regex
+      /
+        (?:create|add|make|new)\s+
+        (?:a\s+)?notebook\s+
+        (?:called\s+|named\s+)?
+        ["']?([^"'\s]+(?:\s+[^"'\s]+)*)["']?
+      /xi
+    end
+
+    def task_create_regex
+      /
+        (?:create|add|make|new)\s+
+        (?:a\s+)?task\s+
+        (?:called\s+|named\s+|titled\s+)?
+        ["']([^"']+)["']\s+
+        (?:in|to|for)\s+
+        (?:the\s+)?(?:notebook\s+)?
+        ["']?([^"'\s]+)["']?
+        (?:\s+notebook)?
+        (?:\s+with\s+|\s+having\s+|\s+and\s+|\s+that\s+has\s+)?
+      /xi
+    end
+
+    def task_list_regex
+      /
+        (?:list|show|get|display).*tasks.*
+        (?:in|from|of)\s+
+        (?:the\s+)?(?:notebook\s+)?
+        ["']?([^"'\s]+(?:\s+[^"'\s]+)*)["']?
+        (?:\s+notebook)?
+      /xi
+    end
+
+    def task_move_regex
+      /
+        (?:move|change|set|mark)\s+task\s+
+        (?:with\s+id\s+)?(\d+)\s+
+        (?:in|from|of)\s+
+        (?:the\s+)?(?:notebook\s+)?
+        ["']?([^"'\s]+(?:\s+[^"'\s]+)*)["']?
+        (?:\s+notebook)?\s+
+        (?:to|as)\s+
+        (todo|in_progress|done|archived)
+      /xi
+    end
+
+    def task_delete_regex
+      /
+        (?:delete|remove)\s+task\s+
+        (?:with\s+id\s+)?(\d+)\s+
+        (?:in|from|of)\s+
+        (?:the\s+)?(?:notebook\s+)?
+        ["']?([^"'\s]+(?:\s+[^"'\s]+)*)["']?
+        (?:\s+notebook)?
+      /xi
+    end
+
+    def task_show_regex
+      /
+        (?:show|view|get|display)\s+
+        (?:details\s+(?:of|for)\s+)?task\s+
+        (?:with\s+id\s+)?(\d+)\s+
+        (?:in|from|of)\s+
+        (?:the\s+)?(?:notebook\s+)?
+        ["']?([^"'\s]+(?:\s+[^"'\s]+)*)["']?
+        (?:\s+notebook)?
+      /xi
+    end
+
+    def export_tasks_regex
+      /export.*tasks.*done.*last\s+\d+\s+weeks?/i
+    end
+
+    def export_done_tasks_regex
+      /export.*done.*tasks.*last\s+\d+\s+weeks?/i
+    end
+
+    def export_all_done_tasks_regex
+      /export.*all.*done.*tasks/i
+    end
+
+    def export_tasks_with_done_status_regex
+      /export.*tasks.*with.*done.*status/i
+    end
+
+    def export_tasks_to_csv_regex
+      /export.*tasks.*to.*csv/i
+    end
+
+    def export_tasks_to_json_regex
+      /export.*tasks.*to.*json/i
+    end
+
+    def export_tasks_to_file_regex
+      /export.*tasks.*to\s+[^\.]+\.[json|cv]/i
+    end
+
+    def save_done_tasks_to_file_regex
+      /save.*done.*tasks.*to.*file/i
+    end
+
     def process_ai_query(prompt)
       api_key = fetch_api_key
       say "\nAPI key loaded successfully" if @options[:verbose]
@@ -48,7 +158,8 @@ module RubyTodo
       cli = RubyTodo::CLI.new
 
       # Special case for "add task to notebook with attributes"
-      if (task_title_match = prompt.match(/add\s+(?:a\s+)?task\s+(?:titled|called|named)\s+["']([^"']+)["']\s+(?:to|in)\s+(\w+)/i))
+      if prompt.match?(add_task_title_regex)
+        task_title_match = prompt.match(add_task_title_regex)
         title = task_title_match[1]
         notebook_name = task_title_match[2]
 
@@ -83,30 +194,33 @@ module RubyTodo
       end
 
       # Check for various export task patterns
-      if prompt.match?(/export.*tasks.*done.*last\s+\d+\s+weeks?/i) ||
-         prompt.match?(/export.*done.*tasks.*last\s+\d+\s+weeks?/i) ||
-         prompt.match?(/export.*all.*done.*tasks/i) ||
-         prompt.match?(/export.*tasks.*with.*done.*status/i) ||
-         prompt.match?(/export.*tasks.*to.*csv/i) ||
-         prompt.match?(/export.*tasks.*to.*json/i) ||
-         prompt.match?(/export.*tasks.*to\s+[^\.]+\.[json|cv]/i) ||
-         prompt.match?(/save.*done.*tasks.*to.*file/i)
+      case
+      when prompt.match?(export_tasks_regex) ||
+        prompt.match?(export_done_tasks_regex) ||
+        prompt.match?(export_all_done_tasks_regex) ||
+        prompt.match?(export_tasks_with_done_status_regex) ||
+        prompt.match?(export_tasks_to_csv_regex) ||
+        prompt.match?(export_tasks_to_json_regex) ||
+        prompt.match?(export_tasks_to_file_regex) ||
+        prompt.match?(save_done_tasks_to_file_regex)
         handle_export_recent_done_tasks(prompt)
         return
       # Check for notebook creation requests
-      elsif (match = prompt.match(/(?:create|add|make|new)\s+(?:a\s+)?notebook\s+(?:called\s+|named\s+)?["']?([^"'\s]+(?:\s+[^"'\s]+)*)["']?/i))
+      when prompt.match?(notebook_create_regex)
+        match = prompt.match(notebook_create_regex)
         notebook_name = match[1]
         cli.notebook_create(notebook_name)
         return
       # Check for notebook listing requests
-      elsif prompt.match?(/list.*notebooks/i) ||
-            prompt.match?(/show.*notebooks/i) ||
-            prompt.match?(/get.*notebooks/i) ||
-            prompt.match?(/display.*notebooks/i)
+      when prompt.match?(/list.*notebooks/i) ||
+        prompt.match?(/show.*notebooks/i) ||
+        prompt.match?(/get.*notebooks/i) ||
+        prompt.match?(/display.*notebooks/i)
         cli.notebook_list
         return
-      # Check for task creation with additional attributes (priority, tags, etc.)
-      elsif (match = prompt.match(/(?:create|add|make|new)\s+(?:a\s+)?task\s+(?:called\s+|named\s+|titled\s+)?["']([^"']+)["']\s+(?:in|to|for)\s+(?:the\s+)?(?:notebook\s+)?["']?([^"'\s]+)["']?(?:\s+notebook)?(?:\s+with\s+|\s+having\s+|\s+and\s+|\s+that\s+has\s+)?/i))
+      # Check for task creation with additional attributes
+      when prompt.match?(task_create_regex)
+        match = prompt.match(task_create_regex)
         title = match[1]
         notebook_name = match[2].sub(/\s+notebook$/i, "")
 
@@ -123,7 +237,10 @@ module RubyTodo
           end
 
           # Check for tags
-          if (tags_match = attributes_part.match(/tags?\s+["']?([^"',]+)["']?/i) || attributes_part.match(/tags?\s+([^\s,]+)/i))
+          tags_regex = /tags?\s+["']?([^"',]+)["']?/i
+          alt_tags_regex = /tags?\s+([^\s,]+)/i
+          if (tags_match = attributes_part.match(tags_regex) ||
+              attributes_part.match(alt_tags_regex))
             options[:tags] = tags_match[1]
           end
 
@@ -147,12 +264,13 @@ module RubyTodo
         RubyTodo::CLI.start(args)
         return
       # Check for task listing requests for a specific notebook
-      elsif (match = prompt.match(/(?:list|show|get|display).*tasks.*(?:in|from|of)\s+(?:the\s+)?(?:notebook\s+)?["']?([^"'\s]+(?:\s+[^"'\s]+)*)["']?(?:\s+notebook)?/i))
+      when prompt.match?(task_list_regex)
+        match = prompt.match(task_list_regex)
         notebook_name = match[1].sub(/\s+notebook$/i, "")
         cli.task_list(notebook_name)
         return
       # Check for general task listing without a notebook specified
-      elsif prompt.match?(/(?:list|show|get|display).*(?:all)?\s*tasks/i)
+      when prompt.match?(/(?:list|show|get|display).*(?:all)?\s*tasks/i)
         # Get the default notebook or first available
         notebooks = RubyTodo::Notebook.all
         if notebooks.any?
@@ -163,20 +281,23 @@ module RubyTodo
         end
         return
       # Check for task movement requests (changing status)
-      elsif (match = prompt.match(/(?:move|change|set|mark)\s+task\s+(?:with\s+id\s+)?(\d+)\s+(?:in|from|of)\s+(?:the\s+)?(?:notebook\s+)?["']?([^"'\s]+(?:\s+[^"'\s]+)*)["']?(?:\s+notebook)?\s+(?:to|as)\s+(todo|in_progress|done|archived)/i))
+      when prompt.match?(task_move_regex)
+        match = prompt.match(task_move_regex)
         task_id = match[1]
         notebook_name = match[2].sub(/\s+notebook$/i, "")
         status = match[3].downcase
         cli.task_move(notebook_name, task_id, status)
         return
       # Check for task deletion requests
-      elsif (match = prompt.match(/(?:delete|remove)\s+task\s+(?:with\s+id\s+)?(\d+)\s+(?:in|from|of)\s+(?:the\s+)?(?:notebook\s+)?["']?([^"'\s]+(?:\s+[^"'\s]+)*)["']?(?:\s+notebook)?/i))
+      when prompt.match?(task_delete_regex)
+        match = prompt.match(task_delete_regex)
         task_id = match[1]
         notebook_name = match[2].sub(/\s+notebook$/i, "")
         cli.task_delete(notebook_name, task_id)
         return
       # Check for task details view requests
-      elsif (match = prompt.match(/(?:show|view|get|display)\s+(?:details\s+(?:of|for)\s+)?task\s+(?:with\s+id\s+)?(\d+)\s+(?:in|from|of)\s+(?:the\s+)?(?:notebook\s+)?["']?([^"'\s]+(?:\s+[^"'\s]+)*)["']?(?:\s+notebook)?/i))
+      when prompt.match?(task_show_regex)
+        match = prompt.match(task_show_regex)
         task_id = match[1]
         notebook_name = match[2].sub(/\s+notebook$/i, "")
         cli.task_show(notebook_name, task_id)
@@ -278,15 +399,8 @@ module RubyTodo
     end
 
     def execute_task_move_command(cmd)
-      # Match notebook name in quotes, task ID, and status
-      if cmd =~ /task:move\s+"([^"]+)"\s+(\d+)\s+(\w+)/
-        notebook_name = Regexp.last_match(1)
-        task_id = Regexp.last_match(2)
-        status = Regexp.last_match(3)
-        cli_args = ["task:move", notebook_name, task_id, status]
-        RubyTodo::CLI.start(cli_args)
-      # Also try matching without quotes
-      elsif cmd =~ /task:move\s+([^\s"]+)\s+(\d+)\s+(\w+)/
+      # Match notebook name with or without quotes, task ID, and status
+      if cmd =~ /task:move\s+"([^"]+)"\s+(\d+)\s+(\w+)/ || cmd =~ /task:move\s+([^\s"]+)\s+(\d+)\s+(\w+)/
         notebook_name = Regexp.last_match(1)
         task_id = Regexp.last_match(2)
         status = Regexp.last_match(3)
@@ -442,7 +556,8 @@ module RubyTodo
 
     def handle_export_recent_done_tasks(prompt)
       # Parse the number of weeks from the prompt
-      weeks = prompt.match(/last\s+(\d+)\s+weeks?/i) ? ::Regexp.last_match(1).to_i : 2 # Default to 2 weeks if not specified
+      weeks_regex = /last\s+(\d+)\s+weeks?/i
+      weeks = prompt.match(weeks_regex) ? ::Regexp.last_match(1).to_i : 2 # Default to 2 weeks
 
       # Allow specifying output format
       format = prompt.match?(/csv/i) ? "csv" : "json"
@@ -478,15 +593,17 @@ module RubyTodo
       # Filter for done tasks within the time period
       exported_data = {
         "notebooks" => notebooks.map do |notebook|
+          notebook_tasks = notebook.tasks.select do |task|
+            task.status == "done" &&
+              task.updated_at &&
+              task.updated_at >= weeks_ago
+          end
+
           {
             "name" => notebook.name,
             "created_at" => notebook.created_at,
             "updated_at" => notebook.updated_at,
-            "tasks" => notebook.tasks.select do |task|
-              task.status == "done" &&
-                task.updated_at &&
-                task.updated_at >= weeks_ago
-            end.map { |task| task_to_hash(task) }
+            "tasks" => notebook_tasks.map { |task| task_to_hash(task) }
           }
         end
       }
