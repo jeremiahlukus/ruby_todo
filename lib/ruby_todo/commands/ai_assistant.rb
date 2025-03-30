@@ -284,6 +284,13 @@ module RubyTodo
         status = Regexp.last_match(3)
         cli_args = ["task:move", notebook_name, task_id, status]
         RubyTodo::CLI.start(cli_args)
+      # Also try matching without quotes
+      elsif cmd =~ /task:move\s+([^\s"]+)\s+(\d+)\s+(\w+)/
+        notebook_name = Regexp.last_match(1)
+        task_id = Regexp.last_match(2)
+        status = Regexp.last_match(3)
+        cli_args = ["task:move", notebook_name, task_id, status]
+        RubyTodo::CLI.start(cli_args)
       else
         say "Invalid task:move command format".red
       end
