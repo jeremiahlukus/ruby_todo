@@ -558,6 +558,127 @@ module RubyTodo
       assert_match(/\d+/, output, "Expected output to contain at least one task ID")
     end
 
+    # Test to verify the fix for notebook:list command
+    def test_notebook_commands_with_explicit_methods
+      @output.truncate(0)
+
+      # Create a unique test notebook
+      notebook_name = "cmd_test_notebook_#{Time.now.to_i}"
+      Notebook.create!(name: notebook_name)
+
+      # Create a CLI instance
+      cli = RubyTodo::CLI.new
+
+      # Test notebook:list
+      cli.notebook_list
+
+      output = @output.string
+      refute_empty output, "Expected non-empty response from notebook:list command"
+      assert_match(/#{notebook_name}/i, output, "Expected to see the test notebook in the output")
+
+      # Reset output for next test
+      @output.truncate(0)
+
+      # Test notebook:create with a new name
+      new_notebook_name = "new_test_notebook_#{Time.now.to_i}"
+      cli.notebook_create(new_notebook_name)
+
+      output = @output.string
+      refute_empty output, "Expected non-empty response from notebook:create command"
+      assert_match(/Created notebook: #{new_notebook_name}/i, output, "Expected confirmation of notebook creation")
+
+      # Verify notebook was created
+      assert Notebook.find_by(name: new_notebook_name), "New notebook should exist in the database"
+
+      # Reset output for next test
+      @output.truncate(0)
+
+      # Test notebook:set_default
+      cli.notebook_set_default(new_notebook_name)
+
+      output = @output.string
+      refute_empty output, "Expected non-empty response from notebook:set_default command"
+      assert_match(/Successfully set '#{new_notebook_name}' as the default notebook/i, output,
+                   "Expected confirmation of setting default notebook")
+
+      # Verify notebook is set as default
+      assert_predicate Notebook.find_by(name: new_notebook_name), :is_default?, "New notebook should be set as default"
+    end
+
+    # Test to verify the fix for template commands
+    def test_template_commands_with_explicit_methods
+      @output.truncate(0)
+
+      # Create a CLI instance
+      cli = RubyTodo::CLI.new
+
+      # Test template:list (initially empty)
+      cli.template_list
+
+      output = @output.string
+      refute_empty output, "Expected non-empty response from template:list command"
+
+      # Reset output for next test
+      @output.truncate(0)
+
+      # Test template:create
+      template_name = "test_template_#{Time.now.to_i}"
+
+      # Need to provide options for the template
+      # Set up options hash to mimic command line options
+      cli.instance_variable_set(:@options, {
+                                  title: "Task for template",
+                                  description: "Task created from template",
+                                  priority: "medium",
+                                  tags: "test,template",
+                                  notebook: "test_notebook"
+                                })
+
+      cli.template_create(template_name)
+
+      output = @output.string
+      refute_empty output, "Expected non-empty response from template:create command"
+      assert_match(/Template '#{template_name}' created successfully/i, output,
+                   "Expected confirmation of template creation")
+
+      # Verify template was created
+      assert RubyTodo::Template.find_by(name: template_name), "Template should exist in the database"
+
+      # Reset output for next test
+      @output.truncate(0)
+
+      # Test template:show
+      cli.template_show(template_name)
+
+      output = @output.string
+      refute_empty output, "Expected non-empty response from template:show command"
+      assert_match(/#{template_name}/i, output, "Expected to see template name in the output")
+
+      # Reset output for next test
+      @output.truncate(0)
+
+      # Test template:use
+      cli.template_use(template_name, "test_notebook")
+
+      output = @output.string
+      refute_empty output, "Expected non-empty response from template:use command"
+      assert_match(/Task created successfully/i, output, "Expected confirmation of task creation from template")
+
+      # Reset output for final test
+      @output.truncate(0)
+
+      # Test template:delete
+      cli.template_delete(template_name)
+
+      output = @output.string
+      refute_empty output, "Expected non-empty response from template:delete command"
+      assert_match(/Template '#{template_name}' deleted successfully/i, output,
+                   "Expected confirmation of template deletion")
+
+      # Verify template was deleted
+      refute RubyTodo::Template.find_by(name: template_name), "Template should be deleted from the database"
+    end
+
     private
 
     def create_sample_tasks

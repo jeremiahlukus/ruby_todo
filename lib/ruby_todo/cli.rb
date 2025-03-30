@@ -411,14 +411,22 @@ module RubyTodo
       ai_command.configure
     end
 
-    # Register command descriptions
+    # Define explicit methods for notebook commands to ensure Thor can see them
     desc "notebook:create NAME", "Create a new notebook"
+
     desc "notebook:list", "List all notebooks"
+
     desc "notebook:set_default NOTEBOOK", "Set a notebook as the default"
+
+    # Register command descriptions for templates with explicit method definitions
     desc "template:create NAME", "Create a new task template"
+
     desc "template:list", "List all templates"
+
     desc "template:show NAME", "Show details of a specific template"
+
     desc "template:delete NAME", "Delete a template"
+
     desc "template:use NAME NOTEBOOK", "Create a task from a template in the specified notebook"
 
     # Map commands to use colon format
