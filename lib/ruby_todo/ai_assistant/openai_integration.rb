@@ -210,6 +210,14 @@ module RubyTodo
     include OpenAIDocumentation
     include OpenAIPromptBuilder
 
+    # System prompt for OpenAI requests
+    SYSTEM_PROMPT = <<~PROMPT
+      You are an AI assistant for the Ruby Todo CLI application. Your role is to help users manage their tasks and notebooks using natural language.
+
+      Your responses should be formatted as JSON with commands and explanations.
+      Always return valid JSON that can be parsed.
+    PROMPT
+
     def query_openai(prompt, context, api_key)
       # Build the context for the AI
       combined_context = enrich_context_with_tasks(context)
