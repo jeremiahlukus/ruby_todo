@@ -12,7 +12,8 @@ module RubyTodo
       def process_task_add(cmd)
         # More specific patterns first
         case cmd
-        when /task:add\s+"([^"]+)"\s+"([^"]+)"(?:\s+(.*))?/, /task:add\s+'([^']+)'\s+'([^']+)'(?:\s+(.*))?/, /task:add\s+([^\s"']+)\s+"([^"]+)"(?:\s+(.*))?/, /task:add\s+([^\s"']+)\s+'([^']+)'(?:\s+(.*))?/
+        when /task:add\s+"([^"]+)"\s+"([^"]+)"(?:\s+(.*))?/, /task:add\s+'([^']+)'\s+'([^']+)'(?:\s+(.*))?/,
+             /task:add\s+([^\s"']+)\s+"([^"]+)"(?:\s+(.*))?/, /task:add\s+([^\s"']+)\s+'([^']+)'(?:\s+(.*))?/
 
           notebook_name = Regexp.last_match(1)
           title = Regexp.last_match(2)
@@ -53,7 +54,9 @@ module RubyTodo
           RubyTodo::CLI.start(cli_args)
         else
           say "Invalid task:add command format".red
-          say "Expected: task:add \"notebook_name\" \"task_title\" [--description \"desc\"] [--priority level][--tags \"tags\"]".yellow
+          message = "Expected: task:add \"notebook_name\" \"task_title\" [--description \"desc\"] " \
+                    "[--priority level][--tags \"tags\"]"
+          say message.yellow
         end
       end
 

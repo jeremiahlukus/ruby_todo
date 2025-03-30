@@ -56,14 +56,12 @@ module RubyTodo
           "- priority: Suggested priority (high, medium, or low)\n" \
           "- tags: Relevant tags as a comma-separated string"
       end
+    end
 
+    # Module for OpenAI query related to task creation
+    module TaskOpenAIQuery
       # Query OpenAI for task details
       def query_openai_for_task_details(task_query, api_key)
-        # Use mock response for tests
-        if ENV["RUBY_TODO_ENV"] == "test"
-          return mock_task_details_response(task_query)
-        end
-
         client = OpenAI::Client.new(access_token: api_key)
         messages = [
           { role: "system", content: "You are a task management assistant that generates professional task details." },
@@ -81,35 +79,10 @@ module RubyTodo
 
         response["choices"][0]["message"]["content"]
       end
+    end
 
-      # Mock response for task details in tests
-      def mock_task_details_response(task_query)
-        if task_query.include?("add newrelic to the questions engine app")
-          <<~JSON
-            ```json
-            {
-              "title": "Add New Relic monitoring to Questions Engine App",
-              "description": "Integrate New Relic performance monitoring into the Questions Engine application to track performance metrics and identify bottlenecks.",
-              "priority": "high",
-              "tags": "monitoring,newrelic,performance"
-            }
-            ```
-          JSON
-        else
-          # Generic mock response for other task queries
-          <<~JSON
-            ```json
-            {
-              "title": "Task from #{task_query}",
-              "description": "Auto-generated task from user query",
-              "priority": "medium",
-              "tags": "auto-generated"
-            }
-            ```
-          JSON
-        end
-      end
-
+    # Module for parsing and processing AI responses
+    module TaskResponseProcessor
       # Parse the OpenAI response for task details
       def parse_task_details_response(content, task_description)
         # Try to extract JSON from the response
@@ -155,8 +128,7 @@ module RubyTodo
           notebook_name = default_notebook ? default_notebook.name : "default"
           # Create default notebook if it doesn't exist
           unless RubyTodo::Notebook.find_by(name: notebook_name)
-            RubyTodo::CLI.start(["notebook:create",
-                                 notebook_name])
+            RubyTodo::CLI.start(["notebook:create", notebook_name])
           end
         end
 
@@ -177,6 +149,13 @@ module RubyTodo
           say "Failed to create task: #{e2.message}".red
         end
       end
+    end
+
+    # Include all task creation modules
+    module TaskCreatorCombined
+      include TaskCreator
+      include TaskOpenAIQuery
+      include TaskResponseProcessor
     end
   end
 end

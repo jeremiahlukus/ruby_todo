@@ -211,31 +211,31 @@ module RubyTodo
     include OpenAIPromptBuilder
 
     def query_openai(prompt, context, api_key)
-      # Use mock integration for tests
-      return mock_openai_response(prompt) if ENV["RUBY_TODO_ENV"] == "test"
-
       # Build the context for the AI
       combined_context = enrich_context_with_tasks(context)
 
       # Add example commands to context
-      combined_context += "\nExample commands you can use:\n" \
-                          "- task:add \"notebook_name\" \"task_title\" --priority high --tags \"tag1,tag2\" --description \"detailed description\"\n" \
-                          "- task:list \"notebook_name\"\n" \
-                          "- task:move \"notebook_name\" task_id new_status (todo, in_progress, done)\n" \
-                          "- task:delete \"notebook_name\" task_id\n" \
-                          "- notebook:create notebook_name\n" \
-                          "- notebook:list\n"
+      command_examples = "\nExample commands you can use:\n" \
+                         "- task:add \"notebook_name\" \"task_title\" --priority high --tags \"tag1,tag2\"   " \
+                         "--description \"detailed description\"\n" \
+                         "- task:list \"notebook_name\"\n" \
+                         "- task:move \"notebook_name\" task_id new_status (todo, in_progress, done)\n" \
+                         "- task:delete \"notebook_name\" task_id\n" \
+                         "- notebook:create notebook_name\n" \
+                         "- notebook:list\n"
+      combined_context += command_examples
 
       # Add special handling for task creation requests
       if prompt.match?(/add|create/i) && prompt.match?(/task|to-?do/i)
         # Extract potential task information from the prompt
         task_info = extract_task_info_from_prompt(prompt)
-        combined_context += "\nDetected task creation intent. Here's the extracted information:\n" \
-                            "- Notebook: #{task_info[:notebook]}\n" \
-                            "- Title: #{task_info[:title]}\n" \
-                            "- Priority: #{task_info[:priority]}\n" \
-                            "- Tags: #{task_info[:tags]}\n" \
-                            "Please use this information to create a valid task:add command."
+        task_context = "\nDetected task creation intent. Here's the extracted information:\n" \
+                       "- Notebook: #{task_info[:notebook]}\n" \
+                       "- Title: #{task_info[:title]}\n" \
+                       "- Priority: #{task_info[:priority]}\n" \
+                       "- Tags: #{task_info[:tags]}\n" \
+                       "Please use this information to create a valid task:add command."
+        combined_context += task_context
       end
 
       # Prepare the messages for the API call
@@ -266,7 +266,8 @@ module RubyTodo
           sleep(2 * try_count) # Exponential backoff
           retry
         else
-          say "Failed to connect to OpenAI API after 3 attempts: #{e.message}".red
+          error_msg = "Failed to connect to OpenAI API after 3 attempts: #{e.message}"
+          say error_msg.red
           { "explanation" => "Error connecting to OpenAI: #{e.message}", "commands" => [] }
         end
       end
@@ -287,10 +288,13 @@ module RubyTodo
       end
 
       # Extract task title
-      if prompt =~ /(?:titled|called|named)\s+["']([^"']+)["']/i
-        info[:title] = Regexp.last_match(1)
-      elsif prompt =~ /(?:add|create)\s+(?:a\s+)?(?:task|to-?do)\s+(?:to|for|about)\s+["']?([^"']+?)["']?(?:\s+to|\s+in|$)/i
-        info[:title] = Regexp.last_match(1)
+      task_title_regex = /
+        (?:titled|called|named)\s+["']([^"']+)["']|
+        (?:add|create)\s+(?:a\s+)?(?:task|to-?do)\s+(?:to|for|about)\s+["']?([^"']+?)["']?(?:\s+to|\s+in|$)
+      /xi
+
+      if prompt =~ task_title_regex
+        info[:title] = Regexp.last_match(1) || Regexp.last_match(2)
       end
 
       # Extract priority
@@ -419,133 +423,6 @@ module RubyTodo
       end
 
       rich_context
-    end
-
-    # Mock OpenAI response for tests
-    def mock_openai_response(prompt)
-      # Mock different responses based on the prompt
-      case prompt
-      when /add task '(High Priority Task.*?)' to test_notebook priority high/i
-        task_title = prompt.match(/add task '(High Priority Task.*?)'/i)[1]
-        # Directly handle the task creation for test_ai_task_creation_suggestion test
-        RubyTodo::CLI.start(["task:add", "test_notebook", task_title, "--priority", "high"])
-        {
-          "explanation" => "Creating a high priority task.",
-          "commands" => [
-            "task:add \"test_notebook\" \"#{task_title}\" --priority high"
-          ]
-        }
-      when /task 'Call the client about project requirements'/i
-        # Handle test_ai_complex_task_creation_with_natural_language
-        RubyTodo::CLI.start(["task:add", "test_notebook", "Call the client about project requirements", "--priority",
-                             "high", "--tags", "client"])
-        {
-          "explanation" => "Creating a task about client requirements.",
-          "commands" => [
-            "task:add \"test_notebook\" \"Call the client about project requirements\" --priority high --tags \"client\""
-          ]
-        }
-      when /add task 'Test Task' to test_notebook with invalid_priority xyz/i
-        # Handle test_ai_task_with_invalid_attributes
-        RubyTodo::CLI.start(["task:add", "test_notebook", "Test Task"])
-        {
-          "explanation" => "Creating a task with valid attributes only.",
-          "commands" => [
-            "task:add \"test_notebook\" \"Test Task\""
-          ]
-        }
-      when /mark.*documentation task as done|mark task.*done/i
-        # Handle test_ai_task_status_update
-        task = RubyTodo::Task.where("title LIKE ?", "%documentation%").first
-        if task
-          task.update(status: "done")
-          {
-            "explanation" => "Marking the documentation task as done",
-            "commands" => [
-              "task:move \"test_notebook\" #{task.id} done"
-            ]
-          }
-        end
-      when /move.*documentation.*github.*in_progress|move.*github.*documentation.*in_progress/i
-        # Handle test_ai_multiple_specific_task_update
-        doc_task = RubyTodo::Task.where("title LIKE ?", "%documentation%").first
-        github_task = RubyTodo::Task.where("title LIKE ?", "%GitHub%").first
-
-        if doc_task
-          doc_task.update(status: "in_progress")
-        end
-
-        if github_task
-          github_task.update(status: "in_progress")
-        end
-
-        {
-          "explanation" => "Moving documentation and github tasks to in_progress",
-          "commands" => [
-            "task:move \"test_notebook\" #{doc_task&.id} in_progress",
-            "task:move \"test_notebook\" #{github_task&.id} in_progress"
-          ]
-        }
-      when /Please change the status of the task about documentation to in_progress|Please change the status of the task about documentation to done/i
-        # Handle test_ai_task_movement_with_natural_language
-        task = RubyTodo::Task.where("title LIKE ?", "%documentation%").first
-        new_status = prompt.include?("to done") ? "done" : "in_progress"
-
-        if task
-          task.update(status: new_status)
-          {
-            "explanation" => "Changing task status to #{new_status}",
-            "commands" => [
-              "task:move \"test_notebook\" #{task.id} #{new_status}"
-            ]
-          }
-        end
-      when /mark task 999999 as done/i
-        # Handle test_ai_invalid_task_id
-        {
-          "explanation" => "Error: Task with ID 999999 does not exist",
-          "commands" => []
-        }
-      when /move task 1 to invalid_status/i
-        # Handle test_ai_invalid_status
-        {
-          "explanation" => "Error: 'invalid_status' is not a recognized status. Use todo, in_progress, or done.",
-          "commands" => []
-        }
-      when /show me task statistics/i
-        # Handle test_ai_statistics_request
-        {
-          "explanation" => "Task statistics",
-          "commands" => [
-            "stats"
-          ]
-        }
-      when /help|task management/i
-        # Handle test_ai_basic_functionality
-        {
-          "explanation" => "I can help you manage your tasks. You can create, list, update, and delete tasks using simple commands.",
-          "commands" => [
-            "task:list \"test_notebook\""
-          ]
-        }
-      else
-        # Default mock response for other tests with more useful information
-        explanation = "I'll help you with that task. "
-
-        # Add more context depending on the prompt
-        if prompt.match?(/multiple|specific|move|github|documentation/i)
-          explanation += "I'll move the documentation and GitHub tasks to in_progress status."
-        elsif prompt.match?(/status|update|done|complete/i)
-          explanation += "I can update the task status for you."
-        end
-
-        {
-          "explanation" => explanation,
-          "commands" => [
-            "task:list \"test_notebook\""
-          ]
-        }
-      end
     end
   end
 end
