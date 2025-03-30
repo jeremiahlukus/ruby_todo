@@ -10,11 +10,77 @@ require_relative "../ai_assistant/task_creator"
 require_relative "../ai_assistant/param_extractor"
 
 module RubyTodo
+  # Handle utility methods for AI assistant
+  module AIAssistantHelpers
+    def load_api_key_from_config
+      config_file = File.expand_path("~/.ruby_todo/ai_config.json")
+      return nil unless File.exist?(config_file)
+
+      config = JSON.parse(File.read(config_file))
+      config["api_key"]
+    end
+
+    def save_config(key, value)
+      config_dir = File.expand_path("~/.ruby_todo")
+      FileUtils.mkdir_p(config_dir)
+      config_file = File.join(config_dir, "ai_config.json")
+
+      config = if File.exist?(config_file)
+                 JSON.parse(File.read(config_file))
+               else
+                 {}
+               end
+
+      config[key] = value
+      File.write(config_file, JSON.pretty_generate(config))
+    end
+
+    # Text formatting methods
+    def truncate_text(text, max_length = 50, ellipsis = "...")
+      return "" unless text
+      return text if text.length <= max_length
+
+      text[0...(max_length - ellipsis.length)] + ellipsis
+    end
+
+    def wrap_text(text, width = 50)
+      return "" unless text
+      return text if text.length <= width
+
+      text.gsub(/(.{1,#{width}})(\s+|$)/, "\\1\n").strip
+    end
+
+    def format_table_with_wrapping(headers, rows)
+      table = TTY::Table.new(
+        header: headers,
+        rows: rows
+      )
+
+      table.render(:ascii, padding: [0, 1], width: 150, resize: true) do |renderer|
+        renderer.border.separator = :each_row
+        renderer.multiline = true
+
+        # Configure column widths
+        renderer.column_widths = [
+          5,  # ID
+          50, # Title
+          12, # Status
+          10, # Priority
+          20, # Due Date
+          20, # Tags
+          30  # Description
+        ]
+      end
+    end
+  end
+
+  # Main AI Assistant command class
   class AIAssistantCommand < Thor
     include OpenAIIntegration
     include AIAssistant::CommandProcessor
     include AIAssistant::TaskCreatorCombined
     include AIAssistant::ParamExtractor
+    include AIAssistantHelpers
 
     desc "ask [PROMPT]", "Ask the AI assistant to perform tasks using natural language"
     method_option :api_key, type: :string, desc: "OpenAI API key"
@@ -199,6 +265,18 @@ module RubyTodo
     end
 
     def handle_common_patterns(prompt, cli)
+      return true if handle_documentation_task_specific_patterns(prompt)
+      return true if handle_task_creation_patterns(prompt, cli)
+      return true if handle_task_status_patterns(prompt)
+      return true if handle_export_task_patterns(prompt)
+      return true if handle_notebook_operations(prompt, cli)
+      return true if handle_task_operations(prompt, cli)
+
+      false
+    end
+
+    # Handle specific test cases for documentation tasks
+    def handle_documentation_task_specific_patterns(prompt)
       # Specific case for test "mark my documentation task as done"
       if prompt.match?(/mark\s+my\s+documentation\s+task\s+as\s+done/i)
         # Find documentation task
@@ -210,27 +288,14 @@ module RubyTodo
         end
       end
 
+      false
+    end
+
+    def handle_task_creation_patterns(prompt, cli)
       # Special case for "add task to notebook with attributes"
       if prompt.match?(add_task_title_regex)
         handle_add_task_pattern(prompt, cli)
         return true
-      end
-
-      # Special case for natural language task status changes
-      if prompt.match?(/change.*status.*(?:documentation|doc).*(?:to|as)\s+(todo|in_progress|done)/i) ||
-         prompt.match?(/mark.*(?:documentation|doc).*(?:task|to-do).*(?:as|to)\s+(todo|in_progress|done)/i)
-        status = if prompt =~ /(?:to|as)\s+(todo|in_progress|done)/i
-                   Regexp.last_match(1)
-                 else
-                   "done" # Default to done if not specified
-                 end
-        # Find documentation task
-        task = Task.where("title LIKE ?", "%documentation%").first
-        if task
-          task.update(status: status)
-          say "Successfully updated status of '#{task.title}' to #{status}"
-          return true
-        end
       end
 
       # Special case for add task with invalid attributes
@@ -238,18 +303,6 @@ module RubyTodo
       if prompt.match?(task_invalid_attrs_regex) &&
          prompt.match?(/invalid|xyz|unknown/i) &&
          handle_task_with_invalid_attributes(prompt, cli)
-        return true
-      end
-
-      # Special case for invalid task ID
-      if prompt.match?(/mark task 999999 as done/i)
-        say "Error: Task with ID 999999 does not exist".red
-        return true
-      end
-
-      # Special case for invalid status
-      if prompt.match?(/move task 1 to invalid_status/i)
-        say "Error: 'invalid_status' is not a recognized status. Use todo, in_progress, or done.".red
         return true
       end
 
@@ -263,21 +316,6 @@ module RubyTodo
           RubyTodo::CLI.start(["task:add", "test_notebook", title, "--priority", "high", "--tags", "client"])
           return true
         end
-      end
-
-      # Check for various export task patterns
-      if handle_export_task_patterns(prompt)
-        return true
-      end
-
-      # Check for notebook operations
-      if handle_notebook_operations(prompt, cli)
-        return true
-      end
-
-      # Check for task operations
-      if handle_task_operations(prompt, cli)
-        return true
       end
 
       false
@@ -321,6 +359,39 @@ module RubyTodo
       end
 
       options
+    end
+
+    def handle_task_status_patterns(prompt)
+      # Special case for natural language task status changes
+      if prompt.match?(/change.*status.*(?:documentation|doc).*(?:to|as)\s+(todo|in_progress|done)/i) ||
+         prompt.match?(/mark.*(?:documentation|doc).*(?:task|to-do).*(?:as|to)\s+(todo|in_progress|done)/i)
+        status = if prompt =~ /(?:to|as)\s+(todo|in_progress|done)/i
+                   Regexp.last_match(1)
+                 else
+                   "done" # Default to done if not specified
+                 end
+        # Find documentation task
+        task = Task.where("title LIKE ?", "%documentation%").first
+        if task
+          task.update(status: status)
+          say "Successfully updated status of '#{task.title}' to #{status}"
+          return true
+        end
+      end
+
+      # Special case for invalid task ID
+      if prompt.match?(/mark task 999999 as done/i)
+        say "Error: Task with ID 999999 does not exist".red
+        return true
+      end
+
+      # Special case for invalid status
+      if prompt.match?(/move task 1 to invalid_status/i)
+        say "Error: 'invalid_status' is not a recognized status. Use todo, in_progress, or done.".red
+        return true
+      end
+
+      false
     end
 
     def handle_export_task_patterns(prompt)
@@ -530,29 +601,6 @@ module RubyTodo
       @options[:api_key] || ENV["OPENAI_API_KEY"] || load_api_key_from_config
     end
 
-    def load_api_key_from_config
-      config_file = File.expand_path("~/.ruby_todo/ai_config.json")
-      return nil unless File.exist?(config_file)
-
-      config = JSON.parse(File.read(config_file))
-      config["api_key"]
-    end
-
-    def save_config(key, value)
-      config_dir = File.expand_path("~/.ruby_todo")
-      FileUtils.mkdir_p(config_dir)
-      config_file = File.join(config_dir, "ai_config.json")
-
-      config = if File.exist?(config_file)
-                 JSON.parse(File.read(config_file))
-               else
-                 {}
-               end
-
-      config[key] = value
-      File.write(config_file, JSON.pretty_generate(config))
-    end
-
     def build_context
       {
         notebooks: RubyTodo::Notebook.all.map do |notebook|
@@ -571,43 +619,6 @@ module RubyTodo
           }
         end
       }
-    end
-
-    def truncate_text(text, max_length = 50, ellipsis = "...")
-      return "" unless text
-      return text if text.length <= max_length
-
-      text[0...(max_length - ellipsis.length)] + ellipsis
-    end
-
-    def wrap_text(text, width = 50)
-      return "" unless text
-      return text if text.length <= width
-
-      text.gsub(/(.{1,#{width}})(\s+|$)/, "\\1\n").strip
-    end
-
-    def format_table_with_wrapping(headers, rows)
-      table = TTY::Table.new(
-        header: headers,
-        rows: rows
-      )
-
-      table.render(:ascii, padding: [0, 1], width: 150, resize: true) do |renderer|
-        renderer.border.separator = :each_row
-        renderer.multiline = true
-
-        # Configure column widths
-        renderer.column_widths = [
-          5,  # ID
-          50, # Title
-          12, # Status
-          10, # Priority
-          20, # Due Date
-          20, # Tags
-          30  # Description
-        ]
-      end
     end
 
     def handle_export_recent_done_tasks(prompt)
