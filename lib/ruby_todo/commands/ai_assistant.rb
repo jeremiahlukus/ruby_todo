@@ -508,8 +508,8 @@ module RubyTodo
       when "csv"
         require 'csv'
         CSV.open(filename, "wb") do |csv|
-          # Add headers
-          csv << ["Notebook", "ID", "Title", "Description", "Tags", "Priority", "Created At", "Updated At"]
+          # Add headers - Note: "Completed At" is the date when the task was moved to the "done" status
+          csv << ["Notebook", "ID", "Title", "Description", "Tags", "Priority", "Created At", "Completed At"]
           
           # Add data rows
           exported_data["notebooks"].each do |notebook|
