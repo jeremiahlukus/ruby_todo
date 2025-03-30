@@ -349,7 +349,7 @@ module RubyTodo
     end
 
     def fetch_api_key
-      options[:api_key] || ENV["OPENAI_API_KEY"] || load_api_key_from_config
+      @options[:api_key] || ENV["OPENAI_API_KEY"] || load_api_key_from_config
     end
 
     def load_api_key_from_config
