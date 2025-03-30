@@ -403,7 +403,7 @@ module RubyTodo
       ai_command = AIAssistantCommand.new
       ai_command.ask(prompt, verbose: options[:verbose], api_key: options[:api_key])
     end
-    
+
     desc "ai:configure", "Configure the AI assistant settings"
     def ai_configure
       require_relative "commands/ai_assistant"
