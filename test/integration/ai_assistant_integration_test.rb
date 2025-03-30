@@ -16,6 +16,7 @@ module RubyTodo
   class AiAssistantIntegrationTest < Minitest::Test
     def setup
       super
+      # Skip all tests in this class if no API key is available
       skip "Skipping AI integration tests: OPENAI_API_KEY environment variable not set" unless ENV["OPENAI_API_KEY"]
 
       @original_stdout = $stdout
@@ -29,7 +30,7 @@ module RubyTodo
 
     def teardown
       super
-      $stdout = @original_stdout
+      $stdout = @original_stdout if @original_stdout
     end
 
     def test_ai_basic_functionality
@@ -76,6 +77,115 @@ module RubyTodo
       refute_empty output, "Expected non-empty response from AI"
       assert_match(/task:search|task:list/i, output, "Expected response to include task search or list")
       assert_match(/documentation/i, output, "Expected response to mention documentation")
+    end
+
+    def test_ai_notebook_listing
+      @output.truncate(0)
+      @ai_assistant.ask("list all notebooks")
+      output = @output.string
+      refute_empty output, "Expected non-empty response from AI"
+      assert_match(/ID|Name|Tasks|Created At|Default/i, output, "Expected notebook listing table headers")
+      assert_match(/test_notebook/i, output, "Expected to see test notebook in the output")
+    end
+
+    def test_ai_create_notebook
+      @output.truncate(0)
+      notebook_name = "ai_test_notebook_#{Time.now.to_i}"
+      @ai_assistant.ask("create a new notebook called #{notebook_name}")
+      output = @output.string
+      refute_empty output, "Expected non-empty response from AI"
+      assert_match(/Created notebook: #{notebook_name}/i, output, "Expected confirmation of notebook creation")
+      
+      # Verify notebook was actually created
+      assert Notebook.find_by(name: notebook_name), "Notebook should exist in the database"
+    end
+
+    def test_ai_create_task_with_attributes
+      @output.truncate(0)
+      task_title = "AI Integration Test Task #{Time.now.to_i}"
+      @ai_assistant.ask("add a task titled '#{task_title}' in test_notebook priority high tag testing")
+      output = @output.string
+      refute_empty output, "Expected non-empty response from AI"
+      assert_match(/Added task: #{task_title}/i, output, "Expected confirmation of task creation")
+      assert_match(/Priority: high/i, output, "Expected priority to be set to high")
+      assert_match(/Tags: testing/i, output, "Expected tag to be set to testing")
+      
+      # Verify task was actually created with correct attributes
+      task = Task.find_by(title: task_title)
+      assert task, "Task should exist in the database"
+      assert_equal "high", task.priority.downcase, "Task priority should be high"
+      assert_match(/testing/i, task.tags, "Task should have testing tag")
+    end
+
+    def test_ai_list_tasks_in_notebook
+      @output.truncate(0)
+      @ai_assistant.ask("show tasks in test_notebook")
+      output = @output.string
+      refute_empty output, "Expected non-empty response from AI"
+      assert_match(/ID|Title|Status|Priority|Due Date|Tags|Description/i, output, "Expected task listing table headers")
+      assert_match(/documentation/i, output, "Expected to see documentation task in the output")
+      assert_match(/github/i, output, "Expected to see github task in the output")
+    end
+
+    def test_ai_export_done_tasks
+      # First, mark a task as done
+      task = Task.first
+      task.update(status: "done", updated_at: Time.now)
+      
+      @output.truncate(0)
+      @ai_assistant.ask("export all the tasks with the done status from the last two weeks")
+      output = @output.string
+      refute_empty output, "Expected non-empty response from AI"
+      assert_match(/Exporting tasks marked as 'done'/i, output, "Expected exporting message")
+      assert_match(/Successfully exported/i, output, "Expected successful export message")
+      
+      # Check for export file
+      export_files = Dir.glob("done_tasks_export_*.json")
+      assert export_files.any?, "Expected at least one export file to be created"
+      
+      # Clean up
+      export_files.each { |f| File.delete(f) if File.exist?(f) }
+    end
+
+    def test_ai_export_done_tasks_to_csv
+      # First, mark a task as done
+      task = Task.first
+      task.update(status: "done", updated_at: Time.now)
+      
+      @output.truncate(0)
+      @ai_assistant.ask("export done tasks to CSV")
+      output = @output.string
+      refute_empty output, "Expected non-empty response from AI"
+      assert_match(/Exporting tasks marked as 'done'/i, output, "Expected exporting message")
+      assert_match(/Successfully exported/i, output, "Expected successful export message")
+      
+      # Check for export file
+      export_files = Dir.glob("*.csv")
+      assert export_files.any?, "Expected at least one CSV export file to be created"
+      
+      # Clean up
+      export_files.each { |f| File.delete(f) if File.exist?(f) }
+    end
+
+    def test_ai_export_done_tasks_with_custom_filename
+      # First, mark a task as done
+      task = Task.first
+      task.update(status: "done", updated_at: Time.now)
+      
+      filename = "custom_export_#{Time.now.to_i}.json"
+      @output.truncate(0)
+      @ai_assistant.ask("export done tasks from the last 2 weeks to file #{filename}")
+      output = @output.string
+      refute_empty output, "Expected non-empty response from AI"
+      assert_match(/Exporting tasks marked as 'done'/i, output, "Expected exporting message")
+      assert_match(/Successfully exported/i, output, "Expected successful export message")
+      assert_match(/#{filename}/i, output, "Expected filename in output")
+      
+      # Check if the file exists
+      assert File.exist?(filename), "Custom export file should exist"
+      
+      # Clean up
+      File.delete(filename) if File.exist?(filename)
     end
 
     def test_ai_statistics_request
@@ -157,6 +267,98 @@ module RubyTodo
       output = @output.string
       refute_empty output, "Expected non-empty response from AI"
       assert_match(/not a recognized status|valid status/i, output, "Expected error message about invalid status")
+    end
+
+    def test_ai_task_with_invalid_attributes
+      @output.truncate(0)
+      @ai_assistant.ask("add task 'Test Task' to test_notebook with invalid_priority xyz")
+      output = @output.string
+      refute_empty output, "Expected non-empty response from AI"
+      
+      # The task should still be created, but without the invalid attributes
+      assert_match(/Added task: Test Task/i, output, "Expected task to be created despite invalid attributes")
+      
+      # Verify the task exists but doesn't have the invalid priority
+      task = Task.find_by(title: "Test Task")
+      assert task, "Task should still be created"
+      refute_equal "invalid_priority", task.priority, "Invalid priority should not be set"
+    end
+
+    def test_ai_export_with_no_done_tasks
+      # Make sure there are no done tasks
+      Task.update_all(status: "todo")
+      
+      @output.truncate(0)
+      @ai_assistant.ask("export done tasks from the last week")
+      output = @output.string
+      refute_empty output, "Expected non-empty response from AI"
+      assert_match(/No 'done' tasks found/i, output, "Expected message about no done tasks")
+    end
+
+    def test_ai_ambiguous_notebook_reference
+      # Create two notebooks with similar names
+      Notebook.create(name: "work")
+      Notebook.create(name: "work_personal")
+      
+      @output.truncate(0)
+      @ai_assistant.ask("list tasks in work")
+      output = @output.string
+      refute_empty output, "Expected non-empty response from AI"
+      
+      # Should match one of the notebooks exactly
+      assert_match(/ID|Title|Status|Priority/i, output, "Expected task listing header")
+    end
+
+    def test_ai_complex_task_creation_with_natural_language
+      @output.truncate(0)
+      @ai_assistant.ask("I need to create a new task called 'Call the client about project requirements' in my test_notebook. It should be high priority and due tomorrow with a tag 'client'.")
+      output = @output.string
+      refute_empty output, "Expected non-empty response from AI"
+      
+      # Check if task was created
+      task = Task.find_by(title: "Call the client about project requirements")
+      assert task, "Task should be created from natural language request"
+    end
+    
+    def test_ai_conversational_request_for_notebook_contents
+      @output.truncate(0)
+      @ai_assistant.ask("Can you please show me what's in my test notebook?")
+      output = @output.string
+      refute_empty output, "Expected non-empty response from AI"
+      assert_match(/ID|Title|Status|Priority|Due Date|Tags|Description/i, output, "Expected task listing table headers")
+      assert_match(/documentation|github/i, output, "Expected to see task titles in the output")
+    end
+    
+    def test_ai_date_based_export_request
+      # First, mark a task as done
+      task = Task.first
+      task.update(status: "done", updated_at: Time.now)
+      
+      @output.truncate(0)
+      @ai_assistant.ask("I'd like to get all the tasks I've finished in the past 14 days and save them to a file")
+      output = @output.string
+      refute_empty output, "Expected non-empty response from AI"
+      assert_match(/Exporting tasks marked as 'done'/i, output, "Expected exporting message")
+      assert_match(/Successfully exported/i, output, "Expected successful export message")
+      
+      # Clean up
+      export_files = Dir.glob("done_tasks_export_*.json")
+      export_files.each { |f| File.delete(f) if File.exist?(f) }
+    end
+    
+    def test_ai_task_movement_with_natural_language
+      task = Task.first
+      initial_status = task.status
+      new_status = initial_status == "done" ? "in_progress" : "done"
+      
+      @output.truncate(0)
+      @ai_assistant.ask("Please change the status of the task about documentation to #{new_status}")
+      output = @output.string
+      refute_empty output, "Expected non-empty response from AI"
+      
+      # Verify task status was updated
+      task.reload
+      assert_equal new_status, task.status, "Task status should be updated to #{new_status}"
     end
 
     private

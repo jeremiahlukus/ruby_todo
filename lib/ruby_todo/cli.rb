@@ -19,7 +19,6 @@ require_relative "concerns/task_filters"
 require_relative "concerns/import_export"
 require_relative "commands/notebook_commands"
 require_relative "commands/template_commands"
-require_relative "commands/ai_commands"
 
 module RubyTodo
   class CLI < Thor
@@ -30,7 +29,6 @@ module RubyTodo
     include ImportExport
     include NotebookCommands
     include TemplateCommands
-    include AICommands
 
     map %w[--version -v] => :version
     desc "version", "Show the Ruby Todo version"
@@ -395,6 +393,24 @@ module RubyTodo
       end
     end
 
+    # AI Commands - explicitly defined
+    desc "ai:ask [PROMPT]", "Ask the AI assistant to perform tasks using natural language"
+    method_option :api_key, type: :string, desc: "OpenAI API key"
+    method_option :verbose, type: :boolean, default: false, desc: "Show detailed response"
+    def ai_ask(*prompt_args)
+      require_relative "commands/ai_assistant"
+      prompt = prompt_args.join(" ")
+      ai_command = AIAssistantCommand.new
+      ai_command.ask(prompt, verbose: options[:verbose], api_key: options[:api_key])
+    end
+    
+    desc "ai:configure", "Configure the AI assistant settings"
+    def ai_configure
+      require_relative "commands/ai_assistant"
+      ai_command = AIAssistantCommand.new
+      ai_command.configure
+    end
+
     # Register command descriptions
     desc "notebook:create NAME", "Create a new notebook"
     desc "notebook:list", "List all notebooks"
@@ -404,8 +420,6 @@ module RubyTodo
     desc "template:show NAME", "Show details of a specific template"
     desc "template:delete NAME", "Delete a template"
     desc "template:use NAME NOTEBOOK", "Create a task from a template in the specified notebook"
-    desc "ai:ask [PROMPT]", "Ask the AI assistant to perform tasks using natural language"
-    desc "ai:configure", "Configure the AI assistant settings"
 
     # Map commands to use colon format
     map "task:add" => :task_add
@@ -571,10 +585,6 @@ module RubyTodo
       text.length > length ? "#{text[0...length]}..." : text
     end
 
-    def ai_command
-      @ai_command ||= AIAssistantCommand.new
-    end
-
     def find_notebook(notebook_name)
       notebook = Notebook.find_by(name: notebook_name)
       unless notebook
@@ -646,19 +656,6 @@ module RubyTodo
         end
       )
       puts table.render(:ascii)
-    end
-
-    desc "ai:ask [PROMPT]", "Ask the AI assistant to perform tasks using natural language"
-    method_option :api_key, type: :string, desc: "OpenAI API key"
-    method_option :verbose, type: :boolean, default: false, desc: "Show detailed response"
-    def ai_ask(*prompt_args)
-      prompt = prompt_args.join(" ")
-      ai_command.ask(prompt)
-    end
-
-    desc "ai:configure", "Configure the AI assistant settings"
-    def ai_configure
-      ai_command.configure
     end
   end
 end

@@ -4,7 +4,7 @@ module RubyTodo
   module AICommands
     def ai_ask(*prompt_args)
       prompt = prompt_args.join(" ")
-      ai_command.ask(prompt)
+      ai_command.ask(prompt, verbose: options[:verbose], api_key: options[:api_key])
     end
 
     def ai_configure
