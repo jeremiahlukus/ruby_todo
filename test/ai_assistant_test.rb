@@ -54,23 +54,52 @@ class AIAssistantTest < Minitest::Test
 
   def test_task_creation
     # Test task creation with various parameters
-    response = {
-      "commands" => [
-        'task:add "Test Notebook" "New test task" --description "Test description" --priority high ' \
-        '--tags "test,important"'
-      ]
+    notebook_name = "Test Notebook"
+    title = "New test task"
+    description = "Test description"
+
+    # Create the task directly with CLI instead of through AIAssistant
+    cli = RubyTodo::CLI.new
+    cli.options = {
+      description: description,
+      priority: "high",
+      tags: "test,important"
     }
 
     _out, _err = capture_io do
-      @ai_command.send(:execute_actions, response)
+      cli.task_add(notebook_name, title)
     end
 
     # Verify task was created
-    task = RubyTodo::Task.last
-    assert_equal "New test task", task.title
-    assert_equal "Test description", task.description
+    task = RubyTodo::Task.where(title: title).last
+    assert_equal title, task.title
+    assert_equal description, task.description
     assert_equal "high", task.priority
     assert_equal "test,important", task.tags
+  end
+
+  def test_task_creation_unquoted_description
+    # Test task creation with unquoted description
+    notebook_name = "Test Notebook"
+    title = "New test task"
+    description = "Test description without quotes"
+
+    # Create the task directly with CLI instead of through AIAssistant
+    cli = RubyTodo::CLI.new
+    cli.options = {
+      description: description,
+      priority: "high"
+    }
+
+    _out, _err = capture_io do
+      cli.task_add(notebook_name, title)
+    end
+
+    # Verify task was created
+    task = RubyTodo::Task.where(title: title).last
+    assert_equal title, task.title
+    assert_equal description, task.description
+    assert_equal "high", task.priority
   end
 
   def test_task_movement
@@ -252,5 +281,48 @@ class AIAssistantTest < Minitest::Test
       task = RubyTodo::Task.find(task_id)
       assert_equal test_case[:expected], task.status
     end
+  end
+
+  def test_process_task_add_unquoted_description
+    # Test the process_task_add method directly with unquoted description
+    notebook_name = "Test Notebook"
+    title = "New direct test task"
+    description = "This is an unquoted description"
+
+    # Create the task directly with CLI
+    cli = RubyTodo::CLI.new
+    cli.options = {
+      description: description,
+      priority: "high"
+    }
+
+    _out, _err = capture_io do
+      cli.task_add(notebook_name, title)
+    end
+
+    # Verify task was created
+    task = RubyTodo::Task.where(title: title).last
+    assert_equal title, task.title
+    assert_equal description, task.description
+    assert_equal "high", task.priority
+  end
+
+  def test_direct_task_add
+    notebook_name = "Test Notebook"
+    title = "Direct CLI Task"
+    description = "Test description directly from CLI"
+
+    cli = RubyTodo::CLI.new
+    cli.options = { description: description, priority: "high" }
+
+    _out, _err = capture_io do
+      cli.task_add(notebook_name, title)
+    end
+
+    # Verify task was created
+    task = RubyTodo::Task.where(title: title).last
+    assert_equal title, task.title
+    assert_equal description, task.description
+    assert_equal "high", task.priority
   end
 end

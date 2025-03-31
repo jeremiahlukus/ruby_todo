@@ -23,12 +23,16 @@ module RubyTodo
 
       # Helper to extract description parameter
       def extract_description_param(params, cli_args)
-        if params =~ /--description\s+"([^"]+)"/
+        case params
+        when /--description\s+"([^"]+)"/
           cli_args.push("--description", Regexp.last_match(1))
         # Using a different approach to avoid duplicate branch
-        elsif params.match?(/--description\s+'([^']+)'/)
+        when /--description\s+'([^']+)'/
           desc = params.match(/--description\s+'([^']+)'/)[1]
           cli_args.push("--description", desc)
+        # Handle description without quotes
+        when /--description\s+([^-\s][^-]*?)(?:\s+--|$)/
+          cli_args.push("--description", Regexp.last_match(1).strip)
         end
       end
 

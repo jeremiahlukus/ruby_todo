@@ -12,6 +12,36 @@ require "fileutils"
 ENV["RUBY_TODO_TEST"] = "true"
 ENV["RUBY_TODO_ENV"] = "test"
 
+# Disable interactive prompts in tests
+module RubyTodo
+  class CLI
+    class << self
+      def disable_interactive_prompts!
+        return if @prompts_disabled
+
+        # Store original methods
+        @original_find_notebook = instance_method(:find_notebook)
+
+        # Replace methods with non-interactive versions
+        define_method(:find_notebook) do |name|
+          notebook = Notebook.find_by(name: name)
+          if notebook.nil?
+            puts "Notebook '#{name}' not found"
+            nil
+          else
+            notebook
+          end
+        end
+
+        @prompts_disabled = true
+      end
+    end
+  end
+end
+
+# Disable interactive prompts
+RubyTodo::CLI.disable_interactive_prompts!
+
 # Set up test database
 module RubyTodo
   class Database

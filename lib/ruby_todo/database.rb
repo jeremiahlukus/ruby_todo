@@ -15,6 +15,22 @@ module RubyTodo
         create_tables
       end
 
+      def initialized?
+        # Try to check if the database exists and is set up
+        db_path = File.expand_path("~/.ruby_todo/ruby_todo.db")
+        File.exist?(db_path) && ActiveRecord::Base.connected?
+      rescue StandardError
+        false
+      end
+
+      def db
+        # Ensure connection is established
+        setup unless initialized?
+
+        # Return connection
+        ActiveRecord::Base.connection
+      end
+
       private
 
       def ensure_database_directory
