@@ -705,6 +705,155 @@ module RubyTodo
     include ExportProcessingHelpers
   end
 
+  # Module for handling task movement-related functionality
+  module TaskMovementHelpers
+    # Handle moving tasks by title or search term
+    def handle_move_task_by_title(prompt, _cli)
+      # Pattern for "move the task about X to status"
+      task_about_pattern = /
+        move\s+(?:the\s+)?(?:task|tasks)\s+
+        (?:about|with|containing|related\s+to)\s+
+        ([\w\s\-]+)\s+to\s+
+        (todo|in[\s_-]?progress|done|archived)
+      /ix
+
+      if prompt.match?(task_about_pattern)
+        match = prompt.match(task_about_pattern)
+        search_term = match[1].strip
+        status = match[2].downcase
+
+        # Normalize status (ensure 'in progress' becomes 'in_progress')
+        status = "in_progress" if status.match?(/in.*progress/i)
+
+        # Find tasks that match the search term
+        all_notebooks = RubyTodo::Notebook.all
+        matched_tasks = []
+
+        all_notebooks.each do |notebook|
+          notebook.tasks.each do |task|
+            next unless task.title.downcase.include?(search_term.downcase) ||
+                        (task.description && task.description.downcase.include?(search_term.downcase))
+
+            matched_tasks << { notebook: notebook, task: task }
+          end
+        end
+
+        if matched_tasks.empty?
+          say "No tasks found matching '#{search_term}'".yellow
+          return true
+        end
+
+        # Move each matched task
+        moved_count = 0
+        matched_tasks.each do |task_info|
+          if task_info[:task].update(status: status)
+            say "Moved task #{task_info[:task].id}: '#{task_info[:task].title}' to #{status}".green
+            moved_count += 1
+          else
+            say "Error moving task #{task_info[:task].id}: #{task_info[:task].errors.full_messages.join(", ")}".red
+          end
+        end
+
+        say "Moved #{moved_count} task(s) to #{status}".green if moved_count > 0
+        return true
+      end
+
+      # Pattern for direct task title movement - "move [title] to [status]"
+      if prompt.match?(%r{move\s+(?:task\s+)?([\w\s\-/'"]+?)\s+to\s+(todo|in[\s_-]?progress|done|archived)}i)
+        match = prompt.match(%r{move\s+(?:task\s+)?([\w\s\-/'"]+?)\s+to\s+(todo|in[\s_-]?progress|done|archived)}i)
+        title_text = match[1].strip
+        status = match[2].downcase
+
+        # Clean up the title by removing quotes
+        title_text = title_text.gsub(/^['"]|['"]$/, "")
+
+        # Normalize status
+        status = "in_progress" if status.match?(/in.*progress/i)
+
+        # Find tasks that match the title
+        all_notebooks = RubyTodo::Notebook.all
+        matched_tasks = []
+
+        all_notebooks.each do |notebook|
+          notebook.tasks.each do |task|
+            next unless task.title.downcase.include?(title_text.downcase)
+
+            matched_tasks << { notebook: notebook, task: task }
+          end
+        end
+
+        if matched_tasks.empty?
+          say "No tasks found matching '#{title_text}'".yellow
+          return true
+        end
+
+        # Move each matched task
+        moved_count = 0
+        matched_tasks.each do |task_info|
+          if task_info[:task].update(status: status)
+            say "Moved task #{task_info[:task].id}: '#{task_info[:task].title}' to #{status}".green
+            moved_count += 1
+          else
+            say "Error moving task #{task_info[:task].id}: #{task_info[:task].errors.full_messages.join(", ")}".red
+          end
+        end
+
+        say "Moved #{moved_count} task(s) to #{status}".green if moved_count > 0
+        return true
+      end
+
+      # Specific pattern for "move task(s) with title X to status"
+      task_with_title_pattern = /
+        move\s+(?:the\s+)?(?:task|tasks)\s+
+        with\s+(?:title|name)\s+
+        ["']([^"']+)["']\s+to\s+
+        (todo|in[\s_-]?progress|done|archived)
+      /ix
+
+      if prompt.match?(task_with_title_pattern)
+        match = prompt.match(task_with_title_pattern)
+        exact_title = match[1]
+        status = match[2].downcase
+
+        # Normalize status
+        status = "in_progress" if status.match?(/in.*progress/i)
+
+        # Find tasks that match the exact title
+        all_notebooks = RubyTodo::Notebook.all
+        matched_tasks = []
+
+        all_notebooks.each do |notebook|
+          notebook.tasks.each do |task|
+            next unless task.title.downcase == exact_title.downcase
+
+            matched_tasks << { notebook: notebook, task: task }
+          end
+        end
+
+        if matched_tasks.empty?
+          say "No tasks found with title '#{exact_title}'".yellow
+          return true
+        end
+
+        # Move each matched task
+        moved_count = 0
+        matched_tasks.each do |task_info|
+          if task_info[:task].update(status: status)
+            say "Moved task #{task_info[:task].id}: '#{task_info[:task].title}' to #{status}".green
+            moved_count += 1
+          else
+            say "Error moving task #{task_info[:task].id}: #{task_info[:task].errors.full_messages.join(", ")}".red
+          end
+        end
+
+        say "Moved #{moved_count} task(s) to #{status}".green if moved_count > 0
+        return true
+      end
+
+      false
+    end
+  end
+
   # Main AI Assistant command class
   class AIAssistantCommand < Thor
     include OpenAIIntegration
@@ -714,6 +863,7 @@ module RubyTodo
     include AIAssistantHelpers
     include StatusFilteringHelpers
     include ExportHelpers
+    include TaskMovementHelpers
 
     desc "ask [PROMPT]", "Ask the AI assistant to perform tasks using natural language"
     method_option :api_key, type: :string, desc: "OpenAI API key"
@@ -879,6 +1029,7 @@ module RubyTodo
       return true if handle_documentation_task_specific_patterns(prompt)
       return true if handle_task_creation_patterns(prompt, cli)
       return true if handle_task_status_patterns(prompt)
+      return true if handle_move_task_by_title(prompt, cli)
       return true if handle_export_task_patterns(prompt)
       return true if handle_notebook_operations(prompt, cli)
       return true if handle_task_operations(prompt, cli)
