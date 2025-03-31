@@ -32,10 +32,11 @@ module RubyTodo
 
       # Extract task description from the prompt
       def extract_task_description(prompt)
-        if prompt =~ /create(?:\s+a)?\s+(?:new\s+)?task\s+(?:to|for|about)\s+(.+)/i
+        # Match common task creation patterns
+        if prompt =~ /(?:create|add|make|set\s+up)(?:\s+a)?\s+(?:new\s+)?task\s+(?:to|for|about|:)\s+(.+)/i
           Regexp.last_match(1).strip
         else
-          ""
+          prompt.strip
         end
       end
 
@@ -45,6 +46,7 @@ module RubyTodo
         task_query = build_task_query(task_description)
 
         # Query OpenAI for task details
+        say "Enhancing task title and generating details..." if @options && @options[:verbose]
         content = query_openai_for_task_details(task_query, api_key)
 
         # Parse the response
@@ -56,7 +58,9 @@ module RubyTodo
         "Generate a professional task with the following information:\n" \
           "Task description: #{task_description}\n" \
           "Please generate a JSON response with these fields:\n" \
-          "- title: A concise, professional title for the task\n" \
+          "- title: A concise, professional title for the task. Transform basic descriptions into more professional, " \
+          "action-oriented titles. For example, 'add new relic infra to questions-engine' should become " \
+          "'Integrate New Relic Infrastructure with Questions Engine'\n" \
           "- description: A detailed description of what the task involves\n" \
           "- priority: Suggested priority (high, medium, or low)\n" \
           "- tags: Relevant tags as a comma-separated string"
@@ -68,21 +72,48 @@ module RubyTodo
       # Query OpenAI for task details
       def query_openai_for_task_details(task_query, api_key)
         client = OpenAI::Client.new(access_token: api_key)
+        system_prompt = <<~PROMPT
+          You are a task management assistant that generates professional task details.
+
+          Transform simple task descriptions into professional, action-oriented titles that clearly communicate purpose.
+
+          Examples of transformations:
+          - "add new relic infra to questions-engine" → "Integrate New Relic Infrastructure with Questions Engine"
+          - "update docker image for app" → "Update and Standardize Docker Image Configuration for Application"
+          - "fix login bug" → "Resolve Authentication Issue in Login System"
+          - "add monitoring to service" → "Implement Comprehensive Monitoring Solution for Service"
+          - "migrate repo to new org" → "Migrate Repository to New Organization Structure"
+
+          Create concise but descriptive titles that use proper capitalization and professional terminology.
+        PROMPT
+
         messages = [
-          { role: "system", content: "You are a task management assistant that generates professional task details." },
+          { role: "system", content: system_prompt },
           { role: "user", content: task_query }
         ]
 
         say "Generating professional task details..." if @options[:verbose]
 
         response = client.chat(parameters: {
-                                 model: "gpt-4o-mini",
+                                 model: "gpt-4o",
                                  messages: messages,
-                                 temperature: 0.7,
+                                 temperature: 0.6,
                                  max_tokens: 500
                                })
 
         response["choices"][0]["message"]["content"]
+      rescue StandardError => e
+        # If gpt-4o fails (not available), fallback to gpt-4o-mini
+        if e.message.include?("gpt-4o")
+          client.chat(parameters: {
+                        model: "gpt-4o-mini",
+                        messages: messages,
+                        temperature: 0.6,
+                        max_tokens: 500
+                      })["choices"][0]["message"]["content"]
+        else
+          raise e
+        end
       end
     end
 
@@ -135,6 +166,13 @@ module RubyTodo
           unless RubyTodo::Notebook.find_by(name: notebook_name)
             RubyTodo::CLI.start(["notebook:create", notebook_name])
           end
+        end
+
+        # Display the improved task title if there's a significant difference
+        if task_details["title"] && task_details["description"] &&
+           task_details["title"] != task_details["description"] &&
+           task_details["title"] != "Task from #{task_details["description"]}"
+          say "✨ Enhanced title: \"#{task_details["title"]}\"", :green
         end
 
         args = ["task:add", notebook_name, task_details["title"]]
