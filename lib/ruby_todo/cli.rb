@@ -65,6 +65,7 @@ module RubyTodo
       notebook = find_notebook(notebook_name)
       return unless notebook
 
+      # Get parameters from options
       description = options[:description]
       due_date = parse_due_date(options[:due_date]) if options[:due_date]
       priority = options[:priority]

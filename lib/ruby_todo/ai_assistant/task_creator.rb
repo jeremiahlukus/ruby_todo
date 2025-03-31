@@ -1,5 +1,10 @@
 # frozen_string_literal: true
 
+require "openai"
+require_relative "../models/notebook"
+require_relative "../models/task"
+require_relative "param_extractor"
+
 module RubyTodo
   module AIAssistant
     # Module for natural language task creation

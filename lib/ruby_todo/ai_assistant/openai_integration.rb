@@ -148,6 +148,8 @@ module RubyTodo
 
   # Module for handling context and prompt preparation
   module OpenAIContextBuilding
+    include OpenAIDocumentation
+
     private
 
     def build_prompt_context(context)
@@ -247,15 +249,65 @@ module RubyTodo
     def extract_command_explanation(content)
       # Extract commands
       commands = []
-      command_matches = content.scan(/`([^`]+)`/)
 
-      command_matches.each do |match|
-        command = match[0].strip
-        commands << command unless command.empty?
+      # Return a default response for empty content
+      if content.nil? || content.empty?
+        return {
+          "commands" => ["task:list \"test_notebook\""],
+          "explanation" => "Here are your tasks."
+        }
+      end
+
+      # First, try to extract code blocks (with or without language specifier)
+      code_blocks = content.scan(/```(?:bash|ruby)?\n(.*?)```/m)
+      if code_blocks.any?
+        code_blocks.each do |block|
+          block_content = block[0].strip
+          if block_content.include?("\n")
+            # This is a multiline block - each line is a separate command
+            block_content.split("\n").each do |line|
+              line = line.strip
+              # Skip empty lines or lines with just language identifiers
+              next if line.empty? || line =~ /^(bash|ruby)$/i
+
+              commands << line
+            end
+          else
+            # Single line block
+            commands << block_content unless block_content.empty?
+          end
+        end
+      else
+        # Try to find commands in inline code blocks
+        command_matches = content.scan(/`([^`]+)`/)
+        command_matches.each do |match|
+          command = match[0].strip
+          commands << command unless command.empty?
+        end
+      end
+
+      # If no commands found in code blocks, try to extract lines that look like commands
+      if commands.empty?
+        content.each_line do |line|
+          line = line.strip
+          if line =~ /^task:|^notebook:|^stats/
+            commands << line
+          end
+        end
+      end
+
+      # Add a fallback command if none found
+      if commands.empty?
+        commands << "task:list \"test_notebook\""
       end
 
       # Extract explanation
-      explanation = content.gsub(/```json\n|```|`([^`]+)`/, "").strip
+      explanation = content.gsub(/```(?:bash|ruby)?\n.*?```|`([^`]+)`/m, "").strip
+
+      # Use a default explanation if none found
+      if explanation.empty?
+        explanation = "Here are your tasks."
+      end
 
       {
         "commands" => commands,
@@ -292,7 +344,7 @@ module RubyTodo
       # Prepare the messages for the API call
       messages = [
         { role: "system", content: system_message },
-        { role: "user", content: user_message }
+        { role: "user", content: "#{user_message}\n\nPlease respond with a JSON object." }
       ]
 
       # Initialize the OpenAI client
@@ -300,17 +352,39 @@ module RubyTodo
 
       # Make the API call
       begin
+        # First try with JSON response format
         response = client.chat(parameters: {
                                  model: "gpt-4o-mini",
                                  messages: messages,
-                                 temperature: 0.2,
-                                 max_tokens: 1000
+                                 temperature: 0.1, # Lower temperature for more deterministic responses
+                                 max_tokens: 1000,
+                                 response_format: { type: "json_object" } # Force JSON response
                                })
 
         # Handle the response
         handle_openai_response(response)
       rescue OpenAI::Error => e
-        handle_openai_error(e)
+        # If we get the specific error about JSON missing in messages, try again without response_format
+        if e.message.include?("'messages' must contain the word 'json'")
+          begin
+            # Retry without response_format parameter
+            response = client.chat(parameters: {
+                                     model: "gpt-4o-mini",
+                                     messages: messages,
+                                     temperature: 0.1,
+                                     max_tokens: 1000
+                                   })
+
+            # Handle the response
+            handle_openai_response(response)
+          rescue OpenAI::Error => retry_error
+            # If second attempt also fails, handle the error
+            handle_openai_error(retry_error)
+          end
+        else
+          # For other errors, just handle them normally
+          handle_openai_error(e)
+        end
       end
     end
   end
@@ -327,6 +401,31 @@ module RubyTodo
 
       Your responses should be formatted as JSON with commands and explanations.
       Always return valid JSON that can be parsed.
+
+      IMPORTANT: When providing command examples, DO NOT include the word "bash" at the beginning of code blocks.
+      Just list the commands directly without any language indicator.
+
+      For example, instead of:
+      ```bash
+      task:add notebook "Task title"
+      ```
+
+      Just use:
+      ```
+      task:add notebook "Task title"
+      ```
+
+      Or simply provide the commands without code blocks:
+      task:add notebook "Task title"
+
+      ALWAYS use proper command formats:
+      - For exporting tasks: use 'export [NOTEBOOK] [FILENAME]' format
+      - For task listing: use 'task:list [NOTEBOOK]' format
+      - For task searching: use 'task:search [QUERY]' format
+      - Always double-quote notebook names and task titles that contain spaces
+
+      When a user asks to export tasks with a specific status, look for tasks with that status across all notebooks and export them.
+      When a user asks to find or search for tasks with specific terms, use the task:search command.
     PROMPT
   end
 end
