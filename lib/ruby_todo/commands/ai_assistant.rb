@@ -1009,7 +1009,17 @@ module RubyTodo
       if prompt.match?(notebook_create_regex)
         match = prompt.match(notebook_create_regex)
         notebook_name = match[1]
-        cli.notebook_create(notebook_name)
+
+        # Create the notebook
+        notebook = cli.notebook_create(notebook_name)
+
+        # Check if we need to set it as default
+        if notebook && (prompt.match?(/set\s+(?:it|this|that)\s+as\s+(?:the\s+)?default/i) ||
+                        prompt.match?(/set\s+(?:as|to)\s+(?:the\s+)?default/i) ||
+                        prompt.match?(/make\s+(?:it|this|that)\s+(?:the\s+)?default/i))
+          cli.notebook_set_default(notebook_name)
+        end
+
         return true
       # Check for notebook listing requests
       elsif prompt.match?(/list.*notebooks/i) ||
@@ -1017,6 +1027,12 @@ module RubyTodo
             prompt.match?(/get.*notebooks/i) ||
             prompt.match?(/display.*notebooks/i)
         cli.notebook_list
+        return true
+      # Check for set default notebook requests
+      elsif prompt.match?(/set\s+(?:notebook\s+)?['"]?([^'"]+)['"]?\s+as\s+(?:the\s+)?default/i)
+        match = prompt.match(/set\s+(?:notebook\s+)?['"]?([^'"]+)['"]?\s+as\s+(?:the\s+)?default/i)
+        notebook_name = match[1]
+        cli.notebook_set_default(notebook_name)
         return true
       end
       false
@@ -1682,11 +1698,38 @@ module RubyTodo
         app_name = ::Regexp.last_match(1)
       end
 
-      # Default notebook
-      default_notebook = app_name || "default"
+      # Default notebook name
+      default_notebook_name = app_name || "default"
 
-      # Make sure the notebook exists by creating it explicitly first
-      create_notebook_if_not_exists(default_notebook)
+      # Ensure there's a default notebook
+      default_notebook = RubyTodo::Notebook.default_notebook
+
+      if default_notebook
+        # Use the existing default notebook
+        default_notebook_name = default_notebook.name
+      else
+        # Create a default notebook if none exists
+        cli = RubyTodo::CLI.new
+        if default_notebook_name == "default"
+          # For the standard "default" name, always make it the default notebook
+          notebook = RubyTodo::Notebook.find_by(name: "default")
+          if notebook
+            # If the notebook exists but isn't the default, make it the default
+            cli.notebook_set_default("default")
+          else
+            # Create the default notebook
+            RubyTodo::Notebook.create(name: "default", is_default: true)
+            say "Created default notebook 'default'"
+          end
+        else
+          # For custom notebook names, create if needed but don't necessarily make it default
+          notebook = RubyTodo::Notebook.find_by(name: default_notebook_name)
+          unless notebook
+            RubyTodo::Notebook.create(name: default_notebook_name)
+            say "Created notebook '#{default_notebook_name}'"
+          end
+        end
+      end
 
       # Extract task descriptions by directly parsing the prompt
       task_descriptions = []
@@ -1735,12 +1778,10 @@ module RubyTodo
         priority = case title
                    when /\bEOL\b|reached\s+EOL|security|critical|urgent|high\s+priority/i
                      "high"
-                   when /\bmedium\s+priority|normal\s+priority/i
-                     "medium"
                    when /\blow\s+priority/i
                      "low"
                    else
-                     "normal" # default priority
+                     "medium" # default priority for all other cases
                    end
 
         # Create a better description if one wasn't explicitly provided
@@ -1766,7 +1807,7 @@ module RubyTodo
         # Create the task using standard CLI command
         begin
           # Prepare command arguments
-          args = ["task:add", default_notebook, title]
+          args = ["task:add", default_notebook_name, title]
           args << "--description" << description unless description.empty?
           args << "--priority" << priority
           args << "--tags" << tags.join(",") unless tags.empty?
@@ -1781,7 +1822,7 @@ module RubyTodo
           say "Tags: #{tags.join(",")}" unless tags.empty?
         rescue StandardError => e
           # Try the default notebook as a fallback
-          if default_notebook != "default" && e.message.include?("not found")
+          if default_notebook_name != "default" && e.message.include?("not found")
             begin
               args = ["task:add", "default", title]
               args << "--description" << description unless description.empty?
@@ -1809,15 +1850,28 @@ module RubyTodo
     end
 
     def create_notebook_if_not_exists(name)
-      # Try to list tasks in the notebook to see if it exists
-      RubyTodo::CLI.start(["task:list", name])
-    rescue StandardError => e
-      if e.message.include?("not found")
-        # If the notebook doesn't exist, create a placeholder task which
-        # will automatically create the notebook
+      # Check if notebook exists
+      notebook = RubyTodo::Notebook.find_by(name: name)
+
+      unless notebook
+        # If the notebook doesn't exist, create it
         say "Creating notebook '#{name}'..."
-        RubyTodo::CLI.start(["task:add", name, "Initial setup", "--tags", "setup"])
+        begin
+          # Use notebook_create command to create the notebook
+          cli = RubyTodo::CLI.new
+          cli.notebook_create(name)
+          notebook = RubyTodo::Notebook.find_by(name: name)
+
+          # Create a default notebook if needed
+          if name == "default" && notebook
+            cli.notebook_set_default(name)
+          end
+        rescue StandardError => e
+          say "Error creating notebook: #{e.message}".red
+        end
       end
+
+      notebook
     end
   end
 end

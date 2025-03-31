@@ -3,8 +3,14 @@
 module RubyTodo
   module NotebookCommands
     def notebook_create(name)
-      Notebook.create(name: name)
-      puts "Created notebook: #{name}".green
+      notebook = Notebook.new(name: name)
+      if notebook.save
+        puts "Created notebook: #{name}".green
+        notebook
+      else
+        puts "Error creating notebook: #{notebook.errors.full_messages.join(", ")}".red
+        nil
+      end
     end
 
     def notebook_list
