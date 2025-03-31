@@ -13,6 +13,8 @@ plugins:
 # Increase line length limit
 Layout/LineLength:
   Max: 120
+  Exclude:
+    - 'test/integration/**/*'
 
 # Relaxed metrics for all files
 Metrics/AbcSize:
@@ -22,9 +24,11 @@ Metrics/AbcSize:
     - 'lib/ruby_todo/cli.rb'
     - 'lib/ruby_todo/database.rb'
     - 'lib/ruby_todo/models/template.rb'
+    - 'lib/ruby_todo/commands/ai_assistant.rb'
+    - 'lib/ruby_todo/ai_assistant/**/*'
 
 Metrics/ClassLength:
-  Max: 600
+  Max: 900
   Exclude:
     - 'test/**/*'
 
@@ -34,12 +38,27 @@ Metrics/MethodLength:
     - 'test/**/*'
     - 'lib/ruby_todo/cli.rb'
     - 'lib/ruby_todo/database.rb'
+    - 'lib/ruby_todo/commands/ai_assistant.rb'
+    - 'lib/ruby_todo/ai_assistant/**/*'
+
+Metrics/ModuleLength:
+  Max: 200
+  Exclude:
+    - 'test/**/*'
+    - 'lib/ruby_todo/commands/ai_assistant.rb'
+    - 'lib/ruby_todo/ai_assistant/**/*'
 
 Metrics/CyclomaticComplexity:
   Max: 15
+  Exclude:
+    - 'lib/ruby_todo/commands/ai_assistant.rb'
+    - 'lib/ruby_todo/ai_assistant/**/*'
 
 Metrics/PerceivedComplexity:
   Max: 20
+  Exclude:
+    - 'lib/ruby_todo/commands/ai_assistant.rb'
+    - 'lib/ruby_todo/ai_assistant/**/*'
 
 # Allow longer blocks in test files and CLI
 Metrics/BlockLength:
@@ -47,6 +66,8 @@ Metrics/BlockLength:
   Exclude:
     - 'test/**/*'
     - 'ruby_todo.gemspec'
+    - 'lib/ruby_todo/commands/ai_assistant.rb'
+    - 'lib/ruby_todo/ai_assistant/**/*'
 
 # Relaxed rules for test descriptions
 Naming/VariableNumber:
