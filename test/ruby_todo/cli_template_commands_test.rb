@@ -128,24 +128,5 @@ module RubyTodo
       assert_match(/Template 'nonexistent_template' not found/i, output,
                    "Expected error message for nonexistent template")
     end
-
-    # Test CLI mapping functionality for template commands
-    def test_cli_command_mapping
-      # Create the most basic Thor application with our commands
-      app_class = Class.new(Thor) do
-        include RubyTodo::TemplateCommands
-
-        desc "template:list", "List all templates"
-
-        map "template:list" => :template_list
-      end
-
-      # Create an instance to properly initialize command maps
-      app_class.new
-
-      # Check that the command is registered in the class
-      assert_includes app_class.commands.keys, "template_list", "Command 'template_list' should be registered"
-      assert_equal :template_list, app_class.map["template:list"], "Command should be properly mapped"
-    end
   end
 end

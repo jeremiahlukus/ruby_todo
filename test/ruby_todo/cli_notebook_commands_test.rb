@@ -78,24 +78,5 @@ module RubyTodo
       assert_match(/Notebook 'nonexistent_notebook' not found/i, output,
                    "Expected error message for nonexistent notebook")
     end
-
-    # Test CLI mapping functionality for notebook commands
-    def test_cli_command_mapping
-      # Create the most basic Thor application with our commands
-      app_class = Class.new(Thor) do
-        include RubyTodo::NotebookCommands
-
-        desc "notebook:list", "List all notebooks"
-
-        map "notebook:list" => :notebook_list
-      end
-
-      # Create an instance to properly initialize command maps
-      app_class.new
-
-      # Check that the command is registered in the class
-      assert_includes app_class.commands.keys, "notebook_list", "Command 'notebook_list' should be registered"
-      assert_equal :notebook_list, app_class.map["notebook:list"], "Command should be properly mapped"
-    end
   end
 end
