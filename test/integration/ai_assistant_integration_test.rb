@@ -259,6 +259,105 @@ module RubyTodo
       FileUtils.rm_f(filename)
     end
 
+    def test_ai_list_tasks_with_in_progress_status
+      # Make sure we have some in-progress tasks
+      in_progress_task = Task.find_by(status: "in_progress")
+      unless in_progress_task
+        in_progress_task = Task.first
+        in_progress_task.update(status: "in_progress")
+      end
+
+      @output.truncate(0)
+      @ai_assistant.ask("list all tasks with in progress status")
+
+      wait_for_output
+
+      output = @output.string
+      refute_empty output, "Expected non-empty response from AI"
+
+      # Verify that the output contains the appropriate task(s)
+      assert_match(/in_progress|In Progress/i, output, "Expected to see 'in_progress' or 'In Progress' in the output")
+
+      # Check that the output contains the in-progress task title
+      assert_match(/#{in_progress_task.title}/i, output, "Expected to see the in-progress task title in the output")
+
+      # The following assertions depend on the specific output format, which might be different
+      # in different test environments, so they're less reliable
+
+      # For table-based output, look for the Status column with In Progress
+      if output.match?(/Status.*In Progress/i)
+        assert_match(/Status.*In Progress/i, output, "Expected Status column to show In Progress")
+      # For ID-based listing format
+      elsif output.match?(/\d+:.*\(in_progress\)/i)
+        assert_match(/\d+:.*\(in_progress\)/i, output, "Expected to see task with in_progress status")
+      # For other formats
+      else
+        assert_match(/in[-_\s]*progress/i, output, "Expected to find in-progress tasks in some format")
+      end
+    end
+
+    def test_ai_show_in_progress_tasks_alternative_phrasing
+      # Make sure we have some in-progress tasks
+      in_progress_task = Task.find_by(status: "in_progress")
+      unless in_progress_task
+        in_progress_task = Task.first
+        in_progress_task.update(status: "in_progress")
+      end
+
+      @output.truncate(0)
+      @ai_assistant.ask("show in progress tasks")
+
+      wait_for_output
+
+      output = @output.string
+      refute_empty output, "Expected non-empty response from AI"
+
+      # Verify that the output contains the appropriate task(s)
+      assert_match(/in_progress|In Progress/i, output, "Expected to see 'in_progress' or 'In Progress' in the output")
+
+      # Check that the output contains the in-progress task title
+      assert_match(/#{in_progress_task.title}/i, output, "Expected to see the in-progress task title in the output")
+
+      # Check for any task status format
+      assert(
+        output.match?(/Status.*In Progress/i) ||
+        output.match?(/\d+:.*\(in_progress\)/i) ||
+        output.match?(/in[-_\s]*progress/i),
+        "Expected to find in-progress tasks in some format"
+      )
+    end
+
+    def test_ai_list_tasks_with_status_in_progress
+      # Make sure we have some in-progress tasks
+      in_progress_task = Task.find_by(status: "in_progress")
+      unless in_progress_task
+        in_progress_task = Task.first
+        in_progress_task.update(status: "in_progress")
+      end
+
+      @output.truncate(0)
+      @ai_assistant.ask("list tasks with status in progress")
+
+      wait_for_output
+
+      output = @output.string
+      refute_empty output, "Expected non-empty response from AI"
+
+      # Verify that the output contains the appropriate task(s)
+      assert_match(/in_progress|In Progress/i, output, "Expected to see 'in_progress' or 'In Progress' in the output")
+
+      # Check that the output contains the in-progress task title
+      assert_match(/#{in_progress_task.title}/i, output, "Expected to see the in-progress task title in the output")
+
+      # Check for any task status format
+      assert(
+        output.match?(/Status.*In Progress/i) ||
+        output.match?(/\d+:.*\(in_progress\)/i) ||
+        output.match?(/in[-_\s]*progress/i),
+        "Expected to find in-progress tasks in some format"
+      )
+    end
+
     def test_ai_statistics_request
       @output.truncate(0)
       @ai_assistant.ask("show me task statistics")
