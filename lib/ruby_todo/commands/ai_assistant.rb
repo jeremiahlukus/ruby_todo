@@ -74,6 +74,68 @@ module RubyTodo
     end
   end
 
+  # Module for status-based task filtering
+  module StatusFilteringHelpers
+    # Helper method to process the status and delegate to handle_status_filtered_tasks
+    def handle_filtered_tasks(cli, status_text)
+      status = status_text.downcase.gsub(/\s+/, "_")
+      handle_status_filtered_tasks(cli, status)
+    end
+
+    # Status-based task filtering patterns
+    def tasks_with_status_regex
+      /(?:list|show|get|display).*(?:all)?\s*tasks\s+
+       (?:with|that\s+(?:are|have))\s+
+       (in\s+progress|todo|done|archived)\s+status/ix
+    end
+
+    def tasks_by_status_regex
+      /(?:list|show|get|display).*(?:all)?\s*tasks\s+
+       (?:with)?\s*status\s+
+       (in\s+progress|todo|done|archived)/ix
+    end
+
+    def status_prefix_tasks_regex
+      /(?:list|show|get|display).*(?:all)?\s*
+       (in\s+progress|todo|done|archived)\s+tasks/ix
+    end
+
+    # Helper method to handle tasks filtered by status
+    def handle_status_filtered_tasks(cli, status)
+      # Get default notebook
+      notebook = RubyTodo::Notebook.default_notebook || RubyTodo::Notebook.first
+
+      # Set options for filtering by status
+      cli.options = { status: status }
+
+      if notebook
+        cli.task_list(notebook.name)
+      else
+        say "No notebooks found. Create a notebook first.".yellow
+      end
+    end
+
+    # Methods for filtering tasks by status
+    def handle_status_filtering(prompt, cli)
+      # Status patterns - simple helper to extract these checks
+      if prompt.match?(tasks_with_status_regex)
+        status_match = prompt.match(tasks_with_status_regex)
+        handle_filtered_tasks(cli, status_match[1])
+        return true
+      elsif prompt.match?(tasks_by_status_regex)
+        status_match = prompt.match(tasks_by_status_regex)
+        handle_filtered_tasks(cli, status_match[1])
+        return true
+      elsif prompt.match?(status_prefix_tasks_regex)
+        status_match = prompt.match(status_prefix_tasks_regex)
+        handle_filtered_tasks(cli, status_match[1])
+        return true
+      end
+
+      false
+    end
+  end
+
   # Main AI Assistant command class
   class AIAssistantCommand < Thor
     include OpenAIIntegration
@@ -81,6 +143,7 @@ module RubyTodo
     include AIAssistant::TaskCreatorCombined
     include AIAssistant::ParamExtractor
     include AIAssistantHelpers
+    include StatusFilteringHelpers
 
     desc "ask [PROMPT]", "Ask the AI assistant to perform tasks using natural language"
     method_option :api_key, type: :string, desc: "OpenAI API key"
@@ -429,20 +492,39 @@ module RubyTodo
     end
 
     def handle_task_operations(prompt, cli)
-      # Check for task creation with additional attributes
-      if prompt.match?(task_create_regex)
-        handle_task_create(prompt, cli)
-        return true
+      # Try to handle each type of operation
+      return true if handle_status_filtering(prompt, cli)
+      return true if handle_task_creation(prompt, cli)
+      return true if handle_task_listing(prompt, cli)
+      return true if handle_task_management(prompt, cli)
+
+      false
+    end
+
+    def handle_task_creation(prompt, cli)
+      return false unless prompt.match?(task_create_regex)
+
+      handle_task_create(prompt, cli)
+      true
+    end
+
+    def handle_task_listing(prompt, cli)
       # Check for task listing requests for a specific notebook
-      elsif prompt.match?(task_list_regex)
+      if prompt.match?(task_list_regex)
         handle_task_list(prompt, cli)
         return true
       # Check for general task listing without a notebook specified
       elsif prompt.match?(/(?:list|show|get|display).*(?:all)?\s*tasks/i)
         handle_general_task_list(cli)
         return true
+      end
+
+      false
+    end
+
+    def handle_task_management(prompt, cli)
       # Check for task movement requests (changing status)
-      elsif prompt.match?(task_move_regex)
+      if prompt.match?(task_move_regex)
         handle_task_move(prompt, cli)
         return true
       # Check for task deletion requests
@@ -454,6 +536,7 @@ module RubyTodo
         handle_task_show(prompt, cli)
         return true
       end
+
       false
     end
 
