@@ -78,26 +78,30 @@ module RubyTodo
   module StatusFilteringHelpers
     # Helper method to process the status and delegate to handle_status_filtered_tasks
     def handle_filtered_tasks(cli, status_text)
-      status = status_text.downcase.gsub(/\s+/, "_")
+      # Normalize the status by removing extra spaces and replacing dashes
+      status = status_text.to_s.downcase.strip
+                          .gsub(/[-\s]+/, "_") # Replace dashes or spaces with underscore
+                          .gsub(/^in_?_?progress$/, "in_progress") # Normalize in_progress variations
+
       handle_status_filtered_tasks(cli, status)
     end
 
     # Status-based task filtering patterns
     def tasks_with_status_regex
-      /(?:list|show|get|display).*(?:all)?\s*tasks\s+
-       (?:with|that\s+(?:are|have))\s+
-       (in\s+progress|todo|done|archived)\s+status/ix
+      /(?:list|show|get|display|see).*(?:all)?\s*tasks\s+
+       (?:with|that\s+(?:are|have)|having|in|that\s+are\s+in)\s+
+       (in[\s_-]?progress|todo|done|archived)(?:\s+status)?/ix
     end
 
     def tasks_by_status_regex
-      /(?:list|show|get|display).*(?:all)?\s*tasks\s+
-       (?:with)?\s*status\s+
-       (in\s+progress|todo|done|archived)/ix
+      /(?:list|show|get|display|see).*(?:all)?\s*tasks\s+
+       (?:with|by|having)?\s*status\s+
+       (in[\s_-]?progress|todo|done|archived)/ix
     end
 
     def status_prefix_tasks_regex
-      /(?:list|show|get|display).*(?:all)?\s*
-       (in\s+progress|todo|done|archived)\s+tasks/ix
+      /(?:list|show|get|display|see).*(?:all)?\s*
+       (in[\s_-]?progress|todo|done|archived)(?:\s+status)?\s+tasks/ix
     end
 
     # Helper method to handle tasks filtered by status
@@ -136,6 +140,292 @@ module RubyTodo
     end
   end
 
+  # Module for handling export-related functionality - Part 1: Patterns and Detection
+  module ExportPatternHelpers
+    def export_tasks_regex
+      /export.*tasks.*(?:done|in_progress|todo|archived)?.*last\s+\d+\s+weeks?/i
+    end
+
+    def export_done_tasks_regex
+      /export.*done.*tasks.*last\s+\d+\s+weeks?/i
+    end
+
+    def export_in_progress_tasks_regex
+      /export.*in[_\s-]?progress.*tasks/i
+    end
+
+    def export_todo_tasks_regex
+      /export.*todo.*tasks/i
+    end
+
+    def export_archived_tasks_regex
+      /export.*archived.*tasks/i
+    end
+
+    def export_all_done_tasks_regex
+      /export.*all.*done.*tasks/i
+    end
+
+    def export_tasks_with_status_regex
+      /export.*tasks.*(?:with|in).*(?:status|state)\s+(todo|in[_\s-]?progress|done|archived)/i
+    end
+
+    def export_tasks_to_csv_regex
+      /export.*tasks.*to.*csv/i
+    end
+
+    def export_tasks_to_json_regex
+      /export.*tasks.*to.*json/i
+    end
+
+    def export_tasks_to_file_regex
+      /export.*tasks.*to\s+[^\.]+\.(json|csv)/i
+    end
+
+    def save_tasks_to_file_regex
+      /save.*tasks.*to.*file/i
+    end
+
+    def handle_export_task_patterns(prompt)
+      # Determine the status to export based on the prompt
+      status = determine_export_status(prompt)
+
+      case
+      when prompt.match?(export_tasks_regex) ||
+        prompt.match?(export_done_tasks_regex) ||
+        prompt.match?(export_in_progress_tasks_regex) ||
+        prompt.match?(export_todo_tasks_regex) ||
+        prompt.match?(export_archived_tasks_regex) ||
+        prompt.match?(export_all_done_tasks_regex) ||
+        prompt.match?(export_tasks_with_status_regex) ||
+        prompt.match?(export_tasks_to_csv_regex) ||
+        prompt.match?(export_tasks_to_json_regex) ||
+        prompt.match?(export_tasks_to_file_regex) ||
+        prompt.match?(save_tasks_to_file_regex)
+        handle_export_tasks_by_status(prompt, status)
+        return true
+      end
+      false
+    end
+
+    # Determine which status to export based on the prompt
+    def determine_export_status(prompt)
+      case prompt
+      when /in[_\s-]?progress/i
+        "in_progress"
+      when /todo/i
+        "todo"
+      when /archived/i
+        "archived"
+      when export_tasks_with_status_regex
+        status_match = prompt.match(export_tasks_with_status_regex)
+        normalize_status(status_match[1])
+      else
+        "done" # Default to done if no specific status mentioned
+      end
+    end
+
+    # Normalize status string (convert "in progress" to "in_progress", etc.)
+    def normalize_status(status)
+      status.to_s.downcase.strip
+            .gsub(/[-\s]+/, "_") # Replace dashes or spaces with underscore
+            .gsub(/^in_?_?progress$/, "in_progress") # Normalize in_progress variations
+    end
+  end
+
+  # Module for handling export-related functionality - Part 2: Core Export Functions
+  module ExportCoreHelpers
+    # Handle exporting tasks with a specific status
+    def handle_export_tasks_by_status(prompt, status)
+      # Extract export parameters from prompt
+      export_params = extract_export_parameters(prompt)
+
+      say "Exporting tasks with status '#{status}'..."
+
+      # Collect and filter tasks by status
+      exported_data = collect_tasks_by_status(status, export_params[:weeks_ago])
+
+      if exported_data["notebooks"].empty?
+        say "No tasks with status '#{status}' found."
+        return
+      end
+
+      # Count tasks
+      total_tasks = exported_data["notebooks"].sum { |nb| nb["tasks"].size }
+
+      # Export data to file
+      export_data_to_file(exported_data, export_params[:filename], export_params[:format])
+
+      # Format the success message
+      success_msg = "Successfully exported #{total_tasks} '#{status}' tasks to #{export_params[:filename]}."
+      say success_msg
+    end
+
+    # This replaces the old handle_export_recent_done_tasks method
+    def handle_export_recent_done_tasks(prompt)
+      handle_export_tasks_by_status(prompt, "done")
+    end
+
+    # Collect tasks with a specific status
+    def collect_tasks_by_status(status, weeks_ago = nil)
+      # Collect all notebooks
+      notebooks = RubyTodo::Notebook.all
+
+      # Filter for tasks with the specified status
+      exported_data = {
+        "notebooks" => notebooks.map do |notebook|
+          notebook_tasks = notebook.tasks.select do |task|
+            if weeks_ago
+              task.status == status &&
+                task.updated_at &&
+                task.updated_at >= weeks_ago
+            else
+              task.status == status
+            end
+          end
+
+          {
+            "name" => notebook.name,
+            "created_at" => notebook.created_at,
+            "updated_at" => notebook.updated_at,
+            "tasks" => notebook_tasks.map { |task| task_to_hash(task) }
+          }
+        end
+      }
+
+      # Filter out notebooks with no matching tasks
+      exported_data["notebooks"].select! { |nb| nb["tasks"].any? }
+
+      exported_data
+    end
+
+    # Helper for task_to_hash in export context
+    def task_to_hash(task)
+      {
+        "id" => task.id,
+        "title" => task.title,
+        "description" => task.description,
+        "status" => task.status,
+        "priority" => task.priority,
+        "tags" => task.tags,
+        "due_date" => task.due_date&.iso8601,
+        "created_at" => task.created_at&.iso8601,
+        "updated_at" => task.updated_at&.iso8601
+      }
+    end
+  end
+
+  # Module for handling export-related functionality - Part 3: File and Parameter Handling
+  module ExportFileHelpers
+    # Update default export filename to reflect the status
+    def default_export_filename(current_time, format, status = "done")
+      "#{status}_tasks_export_#{current_time.strftime("%Y%m%d")}.#{format}"
+    end
+
+    def extract_export_parameters(prompt)
+      # Parse the number of weeks from the prompt
+      weeks_regex = /last\s+(\d+)\s+weeks?/i
+      weeks = prompt.match(weeks_regex) ? ::Regexp.last_match(1).to_i : 2 # Default to 2 weeks
+
+      # Allow specifying output format
+      format = prompt.match?(/csv/i) ? "csv" : "json"
+
+      # Check if a custom filename is specified
+      custom_filename = extract_custom_filename(prompt, format)
+
+      # Get current time
+      current_time = Time.now
+
+      # Calculate the time from X weeks ago
+      weeks_ago = current_time - (weeks * 7 * 24 * 60 * 60)
+
+      # Determine status for the filename
+      status = determine_export_status(prompt)
+
+      {
+        weeks: weeks,
+        format: format,
+        filename: custom_filename || default_export_filename(current_time, format, status),
+        weeks_ago: weeks_ago,
+        status: status
+      }
+    end
+
+    def extract_custom_filename(prompt, format)
+      if prompt.match(/to\s+(?:file\s+|filename\s+)?["']?([^"']+)["']?/i)
+        filename = ::Regexp.last_match(1).strip
+        # Ensure the filename has the correct extension
+        unless filename.end_with?(".#{format}")
+          filename = "#{filename}.#{format}"
+        end
+        return filename
+      end
+      nil
+    end
+
+    def export_data_to_file(exported_data, filename, format)
+      case format
+      when "json"
+        export_to_json(exported_data, filename)
+      when "csv"
+        export_to_csv(exported_data, filename)
+      end
+    end
+
+    def export_to_json(exported_data, filename)
+      File.write(filename, JSON.pretty_generate(exported_data))
+    end
+
+    def export_to_csv(exported_data, filename)
+      require "csv"
+      CSV.open(filename, "wb") do |csv|
+        # Add headers - Note: "Completed At" is the date when the task was moved to the "done" status
+        csv << ["Notebook", "ID", "Title", "Description", "Tags", "Priority", "Created At", "Completed At"]
+
+        # Add data rows
+        exported_data["notebooks"].each do |notebook|
+          notebook["tasks"].each do |task|
+            # Handle tags that might be arrays or comma-separated strings
+            tag_value = format_tags_for_csv(task["tags"])
+
+            csv << [
+              notebook["name"],
+              task["id"] || "N/A",
+              task["title"],
+              task["description"] || "",
+              tag_value,
+              task["priority"] || "normal",
+              task["created_at"],
+              task["updated_at"]
+            ]
+          end
+        end
+      end
+    end
+
+    def format_tags_for_csv(tags)
+      if tags.nil?
+        ""
+      elsif tags.is_a?(Array)
+        tags.join(",")
+      else
+        tags.to_s
+      end
+    end
+  end
+
+  # Module for handling export-related functionality
+  module ExportProcessingHelpers
+    include ExportCoreHelpers
+    include ExportFileHelpers
+  end
+
+  # Combine export helpers for convenience
+  module ExportHelpers
+    include ExportPatternHelpers
+    include ExportProcessingHelpers
+  end
+
   # Main AI Assistant command class
   class AIAssistantCommand < Thor
     include OpenAIIntegration
@@ -144,6 +434,7 @@ module RubyTodo
     include AIAssistant::ParamExtractor
     include AIAssistantHelpers
     include StatusFilteringHelpers
+    include ExportHelpers
 
     desc "ask [PROMPT]", "Ask the AI assistant to perform tasks using natural language"
     method_option :api_key, type: :string, desc: "OpenAI API key"
@@ -251,38 +542,6 @@ module RubyTodo
         ["']?([^"'\s]+(?:\s+[^"'\s]+)*)["']?
         (?:\s+notebook)?
       /xi
-    end
-
-    def export_tasks_regex
-      /export.*tasks.*done.*last\s+\d+\s+weeks?/i
-    end
-
-    def export_done_tasks_regex
-      /export.*done.*tasks.*last\s+\d+\s+weeks?/i
-    end
-
-    def export_all_done_tasks_regex
-      /export.*all.*done.*tasks/i
-    end
-
-    def export_tasks_with_done_status_regex
-      /export.*tasks.*with.*done.*status/i
-    end
-
-    def export_tasks_to_csv_regex
-      /export.*tasks.*to.*csv/i
-    end
-
-    def export_tasks_to_json_regex
-      /export.*tasks.*to.*json/i
-    end
-
-    def export_tasks_to_file_regex
-      /export.*tasks.*to\s+[^\.]+\.[json|cv]/i
-    end
-
-    def save_done_tasks_to_file_regex
-      /save.*done.*tasks.*to.*file/i
     end
 
     def process_ai_query(prompt)
@@ -457,22 +716,6 @@ module RubyTodo
       false
     end
 
-    def handle_export_task_patterns(prompt)
-      case
-      when prompt.match?(export_tasks_regex) ||
-        prompt.match?(export_done_tasks_regex) ||
-        prompt.match?(export_all_done_tasks_regex) ||
-        prompt.match?(export_tasks_with_done_status_regex) ||
-        prompt.match?(export_tasks_to_csv_regex) ||
-        prompt.match?(export_tasks_to_json_regex) ||
-        prompt.match?(export_tasks_to_file_regex) ||
-        prompt.match?(save_done_tasks_to_file_regex)
-        handle_export_recent_done_tasks(prompt)
-        return true
-      end
-      false
-    end
-
     def handle_notebook_operations(prompt, cli)
       # Check for notebook creation requests
       if prompt.match?(notebook_create_regex)
@@ -493,6 +736,7 @@ module RubyTodo
 
     def handle_task_operations(prompt, cli)
       # Try to handle each type of operation
+      # Check status filtering first to ensure it captures the "tasks that are in todo" pattern
       return true if handle_status_filtering(prompt, cli)
       return true if handle_task_creation(prompt, cli)
       return true if handle_task_listing(prompt, cli)
@@ -704,165 +948,6 @@ module RubyTodo
       }
     end
 
-    def handle_export_recent_done_tasks(prompt)
-      # Extract export parameters from prompt
-      export_params = extract_export_parameters(prompt)
-
-      say "Exporting tasks marked as 'done' from the last #{export_params[:weeks]} weeks..."
-
-      # Collect and filter tasks
-      exported_data = collect_done_tasks(export_params[:weeks_ago])
-
-      if exported_data["notebooks"].empty?
-        say "No 'done' tasks found from the last #{export_params[:weeks]} weeks."
-        return
-      end
-
-      # Count tasks
-      total_tasks = exported_data["notebooks"].sum { |nb| nb["tasks"].size }
-
-      # Export data to file
-      export_data_to_file(exported_data, export_params[:filename], export_params[:format])
-
-      # Format the success message
-      success_msg = "Successfully exported #{total_tasks} 'done' tasks from the last " \
-                    "#{export_params[:weeks]} weeks to #{export_params[:filename]}."
-      say success_msg
-    end
-
-    def extract_export_parameters(prompt)
-      # Parse the number of weeks from the prompt
-      weeks_regex = /last\s+(\d+)\s+weeks?/i
-      weeks = prompt.match(weeks_regex) ? ::Regexp.last_match(1).to_i : 2 # Default to 2 weeks
-
-      # Allow specifying output format
-      format = prompt.match?(/csv/i) ? "csv" : "json"
-
-      # Check if a custom filename is specified
-      custom_filename = extract_custom_filename(prompt, format)
-
-      # Get current time
-      current_time = Time.now
-
-      # Calculate the time from X weeks ago
-      weeks_ago = current_time - (weeks * 7 * 24 * 60 * 60)
-
-      {
-        weeks: weeks,
-        format: format,
-        filename: custom_filename || default_export_filename(current_time, format),
-        weeks_ago: weeks_ago
-      }
-    end
-
-    def extract_custom_filename(prompt, format)
-      if prompt.match(/to\s+(?:file\s+|filename\s+)?["']?([^"']+)["']?/i)
-        filename = ::Regexp.last_match(1).strip
-        # Ensure the filename has the correct extension
-        unless filename.end_with?(".#{format}")
-          filename = "#{filename}.#{format}"
-        end
-        return filename
-      end
-      nil
-    end
-
-    def default_export_filename(current_time, format)
-      "done_tasks_export_#{current_time.strftime("%Y%m%d")}.#{format}"
-    end
-
-    def collect_done_tasks(weeks_ago)
-      # Collect all notebooks
-      notebooks = RubyTodo::Notebook.all
-
-      # Filter for done tasks within the time period
-      exported_data = {
-        "notebooks" => notebooks.map do |notebook|
-          notebook_tasks = notebook.tasks.select do |task|
-            task.status == "done" &&
-              task.updated_at &&
-              task.updated_at >= weeks_ago
-          end
-
-          {
-            "name" => notebook.name,
-            "created_at" => notebook.created_at,
-            "updated_at" => notebook.updated_at,
-            "tasks" => notebook_tasks.map { |task| task_to_hash(task) }
-          }
-        end
-      }
-
-      # Filter out notebooks with no matching tasks
-      exported_data["notebooks"].select! { |nb| nb["tasks"].any? }
-
-      exported_data
-    end
-
-    def export_data_to_file(exported_data, filename, format)
-      case format
-      when "json"
-        export_to_json(exported_data, filename)
-      when "csv"
-        export_to_csv(exported_data, filename)
-      end
-    end
-
-    def export_to_json(exported_data, filename)
-      File.write(filename, JSON.pretty_generate(exported_data))
-    end
-
-    def export_to_csv(exported_data, filename)
-      require "csv"
-      CSV.open(filename, "wb") do |csv|
-        # Add headers - Note: "Completed At" is the date when the task was moved to the "done" status
-        csv << ["Notebook", "ID", "Title", "Description", "Tags", "Priority", "Created At", "Completed At"]
-
-        # Add data rows
-        exported_data["notebooks"].each do |notebook|
-          notebook["tasks"].each do |task|
-            # Handle tags that might be arrays or comma-separated strings
-            tag_value = format_tags_for_csv(task["tags"])
-
-            csv << [
-              notebook["name"],
-              task["id"] || "N/A",
-              task["title"],
-              task["description"] || "",
-              tag_value,
-              task["priority"] || "normal",
-              task["created_at"],
-              task["updated_at"]
-            ]
-          end
-        end
-      end
-    end
-
-    def format_tags_for_csv(tags)
-      if tags.nil?
-        ""
-      elsif tags.is_a?(Array)
-        tags.join(",")
-      else
-        tags.to_s
-      end
-    end
-
-    def task_to_hash(task)
-      {
-        "id" => task.id,
-        "title" => task.title,
-        "description" => task.description,
-        "status" => task.status,
-        "priority" => task.priority,
-        "tags" => task.tags,
-        "due_date" => task.due_date&.iso8601,
-        "created_at" => task.created_at&.iso8601,
-        "updated_at" => task.updated_at&.iso8601
-      }
-    end
-
     def handle_task_with_invalid_attributes(prompt, _cli)
       # Extract task title and notebook from prompt
       match = prompt.match(/add task\s+['"]([^'"]+)['"]\s+to\s+(\w+)/i)
@@ -909,6 +994,24 @@ module RubyTodo
       else
         false # Not matching our pattern
       end
+    end
+
+    # Helper method to check if a pattern is status filtering or notebook filtering
+    def is_status_filtering_pattern?(prompt)
+      tasks_with_status_regex = /(?:list|show|get|display|see).*(?:all)?\s*tasks\s+
+                                (?:with|that\s+(?:are|have)|having|in|that\s+are)\s+
+                                (in[\s_-]?progress|todo|done|archived)(?:\s+status)?/ix
+
+      tasks_by_status_regex = /(?:list|show|get|display|see).*(?:all)?\s*tasks\s+
+                              (?:with|by|having)?\s*status\s+
+                              (in[\s_-]?progress|todo|done|archived)/ix
+
+      status_prefix_tasks_regex = /(?:list|show|get|display|see).*(?:all)?\s*
+                                  (in[\s_-]?progress|todo|done|archived)(?:\s+status)?\s+tasks/ix
+
+      prompt.match?(tasks_with_status_regex) ||
+        prompt.match?(tasks_by_status_regex) ||
+        prompt.match?(status_prefix_tasks_regex)
     end
   end
 end

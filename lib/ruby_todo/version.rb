@@ -1,5 +1,5 @@
 # frozen_string_literal: true
 
 module RubyTodo
-  VERSION = "1.0.4"
+  VERSION = "1.0.6"
 end
