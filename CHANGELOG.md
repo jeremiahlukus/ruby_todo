@@ -1,3 +1,8 @@
+## [1.0.7] - 2025-03-31
+
+* Manual release
+
+
 ## [1.0.4] - 2025-03-31
 
 * Manual release
