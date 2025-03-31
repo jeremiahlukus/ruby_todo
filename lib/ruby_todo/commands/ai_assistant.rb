@@ -78,10 +78,16 @@ module RubyTodo
   module StatusFilteringHelpers
     # Helper method to process the status and delegate to handle_status_filtered_tasks
     def handle_filtered_tasks(cli, status_text)
+      # For debugging
+      puts "Debug - Handling filtered tasks with status: #{status_text}"
+
+      # List available notebooks to help debug
+      notebooks = RubyTodo::Notebook.all
+      puts "Debug - Available notebooks: #{notebooks.map(&:name).join(", ")}"
+
       # Normalize the status by removing extra spaces and replacing dashes
-      status = status_text.to_s.downcase.strip
-                          .gsub(/[-\s]+/, "_") # Replace dashes or spaces with underscore
-                          .gsub(/^in_?_?progress$/, "in_progress") # Normalize in_progress variations
+      status = normalize_status(status_text)
+      puts "Debug - Normalized status: #{status}"
 
       handle_status_filtered_tasks(cli, status)
     end
@@ -106,14 +112,44 @@ module RubyTodo
 
     # Helper method to handle tasks filtered by status
     def handle_status_filtered_tasks(cli, status)
+      # Normalize status to ensure 'in progress' becomes 'in_progress'
+      normalized_status = normalize_status(status)
+
+      # Set options for filtering by status - this is expected by the tests
+      cli.options = { status: normalized_status }
+
       # Get default notebook
       notebook = RubyTodo::Notebook.default_notebook || RubyTodo::Notebook.first
 
-      # Set options for filtering by status
-      cli.options = { status: status }
-
       if notebook
+        # Use the CLI's task_list method to ensure consistent output format
         cli.task_list(notebook.name)
+
+        # If no tasks were found in the default notebook, search across all notebooks
+        all_matching_tasks = RubyTodo::Task.where(status: normalized_status)
+
+        if all_matching_tasks.any?
+          # Group tasks by notebook
+          tasks_by_notebook = {}
+          all_matching_tasks.each do |task|
+            matching_notebook = RubyTodo::Notebook.find_by(id: task.notebook_id)
+            next unless matching_notebook && matching_notebook.id != notebook.id
+
+            tasks_by_notebook[matching_notebook.name] ||= []
+            tasks_by_notebook[matching_notebook.name] << task
+          end
+
+          # Show tasks from other notebooks
+          tasks_by_notebook.each do |notebook_name, tasks|
+            say "Additional tasks in '#{notebook_name}' with status '#{status}':"
+
+            # Use a format that matches the CLI's task_list output
+            # which has the ID: Title (Status) format expected by the tests
+            tasks.each do |task|
+              say "#{task.id}: #{task.title} (#{task.status})"
+            end
+          end
+        end
       else
         say "No notebooks found. Create a notebook first.".yellow
       end
@@ -137,6 +173,13 @@ module RubyTodo
       end
 
       false
+    end
+
+    # Normalize status string (convert "in progress" to "in_progress", etc.)
+    def normalize_status(status)
+      status.to_s.downcase.strip
+            .gsub(/[-\s]+/, "_") # Replace dashes or spaces with underscore
+            .gsub(/^in_?_?progress$/, "in_progress") # Normalize in_progress variations
     end
   end
 
@@ -906,11 +949,12 @@ module RubyTodo
     def extract_task_options(prompt)
       options = {}
       # Check for priority
-      if prompt =~ /priority\s+high/i
+      case prompt
+      when /priority\s+high/i
         options[:priority] = "high"
-      elsif prompt =~ /priority\s+medium/i
+      when /priority\s+medium/i
         options[:priority] = "medium"
-      elsif prompt =~ /priority\s+low/i
+      when /priority\s+low/i
         options[:priority] = "low"
       end
 
@@ -981,6 +1025,13 @@ module RubyTodo
     def handle_task_operations(prompt, cli)
       # Try to handle each type of operation
       # Check status filtering first to ensure it captures the "tasks that are in todo" pattern
+
+      # Special case for "list all tasks in progress" before other patterns
+      if prompt.match?(/(?:list|show|get|display).*(?:all)?\s*tasks\s+in\s+progress/i)
+        handle_filtered_tasks(cli, "in_progress")
+        return true
+      end
+
       return true if handle_status_filtering(prompt, cli)
       return true if handle_task_creation(prompt, cli)
       return true if handle_task_listing(prompt, cli)
@@ -1681,15 +1732,16 @@ module RubyTodo
         tags << app_name.downcase if app_name
 
         # Determine priority - EOL issues and security are high priority
-        if title =~ /\bEOL\b|reached\s+EOL|security|critical|urgent|high\s+priority/i
-          priority = "high"
-        elsif title =~ /\bmedium\s+priority|normal\s+priority/i
-          priority = "medium"
-        elsif title =~ /\blow\s+priority/i
-          priority = "low"
-        else
-          priority = "normal" # default priority
-        end
+        priority = case title
+                   when /\bEOL\b|reached\s+EOL|security|critical|urgent|high\s+priority/i
+                     "high"
+                   when /\bmedium\s+priority|normal\s+priority/i
+                     "medium"
+                   when /\blow\s+priority/i
+                     "low"
+                   else
+                     "normal" # default priority
+                   end
 
         # Create a better description if one wasn't explicitly provided
         if description.empty?
