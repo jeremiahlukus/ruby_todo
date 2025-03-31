@@ -906,12 +906,11 @@ module RubyTodo
     def extract_task_options(prompt)
       options = {}
       # Check for priority
-      case prompt
-      when /priority\s+high/i
+      if prompt =~ /priority\s+high/i
         options[:priority] = "high"
-      when /priority\s+medium/i
+      elsif prompt =~ /priority\s+medium/i
         options[:priority] = "medium"
-      when /priority\s+low/i
+      elsif prompt =~ /priority\s+low/i
         options[:priority] = "low"
       end
 
@@ -1602,10 +1601,9 @@ module RubyTodo
 
       # Special handling for description to support unquoted descriptions
       case params
-      when /--description\s+"([^"]+)"/
-        cli_args << "--description" << Regexp.last_match(1)
-      when /--description\s+'([^']+)'/
-        cli_args << "--description" << Regexp.last_match(1)
+      when /--description\s+"([^"]+)"|--description\s+'([^']+)'/
+        # Use the first non-nil capture group (either double or single quotes)
+        cli_args << "--description" << (Regexp.last_match(1) || Regexp.last_match(2))
       when /--description\s+([^-\s][^-]*?)(?:\s+--|$)/
         cli_args << "--description" << Regexp.last_match(1).strip
       end
@@ -1683,16 +1681,15 @@ module RubyTodo
         tags << app_name.downcase if app_name
 
         # Determine priority - EOL issues and security are high priority
-        priority = case title
-                   when /\bEOL\b|reached\s+EOL|security|critical|urgent|high\s+priority/i
-                     "high"
-                   when /\bmedium\s+priority|normal\s+priority/i
-                     "medium"
-                   when /\blow\s+priority/i
-                     "low"
-                   else
-                     "medium" # default
-                   end
+        if title =~ /\bEOL\b|reached\s+EOL|security|critical|urgent|high\s+priority/i
+          priority = "high"
+        elsif title =~ /\bmedium\s+priority|normal\s+priority/i
+          priority = "medium"
+        elsif title =~ /\blow\s+priority/i
+          priority = "low"
+        else
+          priority = "normal" # default priority
+        end
 
         # Create a better description if one wasn't explicitly provided
         if description.empty?
