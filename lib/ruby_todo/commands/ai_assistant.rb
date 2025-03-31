@@ -837,9 +837,10 @@ module RubyTodo
       # Create a CLI instance for executing commands
       cli = RubyTodo::CLI.new
 
-      # Special case: handling natural language task creation
+      # Special case: handling natural language task creation with title enhancement
       if prompt.match?(/create(?:\s+a)?\s+(?:new\s+)?task\s+(?:to|for|about)\s+(.+)/i)
-        handle_natural_language_task_creation(prompt, api_key)
+        task_description = prompt.match(/create(?:\s+a)?\s+(?:new\s+)?task\s+(?:to|for|about)\s+(.+)/i)[1].strip
+        handle_task_creation_with_enhancement(task_description, api_key)
         return
       end
 
@@ -1686,6 +1687,26 @@ module RubyTodo
         # Add the option to cli_args
         cli_args << "--#{option_name}" << option_value if option_name && option_value
       end
+    end
+
+    # Enhanced task creation that uses AI to improve titles
+    def handle_task_creation_with_enhancement(task_description, api_key)
+      # Get the default notebook
+      notebook_name = default_notebook_name
+
+      # Log the original description if in verbose mode
+      say "Original task description: #{task_description}" if @options[:verbose]
+
+      # Generate task details using AI
+      task_details = generate_task_details(task_description, api_key)
+
+      # Log the enhanced title for better UX
+      if task_details["title"] && task_details["title"] != task_description
+        say "✨ Enhanced title: \"#{task_details["title"]}\"".green
+      end
+
+      # Create the task with the enhanced details
+      create_task_from_details(notebook_name, task_details)
     end
 
     def handle_natural_language_task_creation(prompt, _api_key)

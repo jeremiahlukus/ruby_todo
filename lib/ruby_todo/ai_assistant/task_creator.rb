@@ -83,6 +83,8 @@ module RubyTodo
           - "fix login bug" → "Resolve Authentication Issue in Login System"
           - "add monitoring to service" → "Implement Comprehensive Monitoring Solution for Service"
           - "migrate repo to new org" → "Migrate Repository to New Organization Structure"
+          - "add newrelic to the questions engine app" → "Integrate New Relic Monitoring with Questions Engine Application"
+          - "create a new task to add newrelic to the questions engine app" → "Implement New Relic Monitoring for Questions Engine Application"
 
           Create concise but descriptive titles that use proper capitalization and professional terminology.
         PROMPT
