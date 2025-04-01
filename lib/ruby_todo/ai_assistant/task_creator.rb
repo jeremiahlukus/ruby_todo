@@ -62,7 +62,7 @@ module RubyTodo
           "action-oriented titles. For example, 'add new relic infra to questions-engine' should become " \
           "'Integrate New Relic Infrastructure with Questions Engine'\n" \
           "- description: A detailed description of what the task involves\n" \
-          "- priority: Suggested priority (high, medium, or low)\n" \
+          "- priority: Suggested priority (must be exactly one of: 'high', 'medium', or 'low')\n" \
           "- tags: Relevant tags as a comma-separated string"
       end
     end
@@ -87,6 +87,8 @@ module RubyTodo
           - "create a new task to add newrelic to the questions engine app" → "Implement New Relic Monitoring for Questions Engine Application"
 
           Create concise but descriptive titles that use proper capitalization and professional terminology.
+
+          IMPORTANT: For priority field, you MUST use ONLY one of these exact values: "high", "medium", or "low" (lowercase).
         PROMPT
 
         messages = [
@@ -145,9 +147,25 @@ module RubyTodo
         {
           "title" => title_match ? title_match[1] : "Task from #{task_description}",
           "description" => desc_match ? desc_match[1] : task_description,
-          "priority" => priority_match ? priority_match[1] : "medium",
+          "priority" => priority_match ? normalize_priority(priority_match[1]) : "medium",
           "tags" => tags_match ? tags_match[1] : ""
         }
+      end
+
+      # Normalize priority to ensure it matches allowed values
+      def normalize_priority(priority)
+        priority = priority.downcase.strip
+        return priority if ["high", "medium", "low"].include?(priority)
+        
+        # Map similar terms to valid priorities
+        case priority
+        when /^h/i, "important", "urgent", "critical"
+          "high"
+        when /^l/i, "minor", "trivial"
+          "low"
+        else
+          "medium" # Default fallback
+        end
       end
 
       # Create a task from the generated details
@@ -176,6 +194,9 @@ module RubyTodo
            task_details["title"] != "Task from #{task_details["description"]}"
           say "✨ Enhanced title: \"#{task_details["title"]}\"", :green
         end
+
+        # Ensure priority is properly normalized before passing to CLI
+        task_details["priority"] = normalize_priority(task_details["priority"]) if task_details["priority"]
 
         args = ["task:add", notebook_name, task_details["title"]]
         args << "--description" << task_details["description"] if task_details["description"]
