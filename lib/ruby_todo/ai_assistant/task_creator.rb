@@ -155,8 +155,8 @@ module RubyTodo
       # Normalize priority to ensure it matches allowed values
       def normalize_priority(priority)
         priority = priority.downcase.strip
-        return priority if ["high", "medium", "low"].include?(priority)
-        
+        return priority if %w[high medium low].include?(priority)
+
         # Map similar terms to valid priorities
         case priority
         when /^h/i, "important", "urgent", "critical"
